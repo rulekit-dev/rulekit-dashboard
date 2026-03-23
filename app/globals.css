@@ -1,0 +1,211 @@
+@import "tailwindcss";
+
+:root {
+  --orange: #F05A28;
+  --orange-light: #FF7A4D;
+  --orange-dim: #FEE8E0;
+  --orange-deep: #C03D14;
+  --ink: #1C1C1A;
+  --ink-muted: #6B6B67;
+  --ink-subtle: #AEADA6;
+  --surface: #F7F6F2;
+  --surface-2: #EEECEA;
+  --white: #FFFFFF;
+  --border: rgba(28,28,26,0.11);
+  --border-med: rgba(28,28,26,0.17);
+  --green: #16A34A;
+  --green-dim: #DCFCE7;
+  --green-deep: #15803D;
+  --blue: #2563EB;
+  --blue-dim: #EFF6FF;
+  --purple: #7C3AED;
+  --purple-dim: #F5F3FF;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Skeleton shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, #e8e7e3 37%, var(--surface-2) 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 6px;
+}
+
+/* Toast slide in */
+@keyframes toast-slide-in {
+  from { transform: translateX(110%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes toast-slide-out {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(110%); opacity: 0; }
+}
+
+.toast-enter {
+  animation: toast-slide-in 0.4s ease forwards;
+}
+
+.toast-exit {
+  animation: toast-slide-out 0.4s ease forwards;
+}
+
+/* Page transition */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-fill-mode: both;
+}
+
+/* Staggered row animation */
+.animate-row {
+  animation: fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+}
+
+/* Badge dot pulse */
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.badge-dot-pulse {
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+
+/* Modal animation */
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-backdrop {
+  animation: modal-backdrop-in 0.3s ease forwards;
+}
+
+.modal-panel {
+  animation: modal-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Save bar slide up */
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ink-subtle);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-muted);
+}
+
+/* Home page responsive grid */
+@layer utilities {
+  .home-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .home-two-col-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .home-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .home-two-col-grid { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 768px) {
+  .home-stats-grid { grid-template-columns: 1fr !important; }
+}
+
+/* React Flow overrides */
+.react-flow__background {
+  background-color: #F5F4F0 !important;
+}
+
+.react-flow {
+  --xy-edge-stroke-selected: var(--ink);
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge.selected .react-flow__edge-interaction {
+  stroke: var(--ink) !important;
+  stroke-width: 2.5 !important;
+}
+
+/* Strip default styling from all node type wrappers */
+.react-flow__node-input,
+.react-flow__node-output,
+.react-flow__node-default {
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  width: auto !important;
+  text-align: left !important;
+  font-size: inherit !important;
+  color: inherit !important;
+}
+
+.react-flow__node-input.selectable:hover,
+.react-flow__node-output.selectable:hover,
+.react-flow__node-default.selectable:hover,
+.react-flow__node-input.selectable.selected,
+.react-flow__node-output.selectable.selected,
+.react-flow__node-default.selectable.selected,
+.react-flow__node-input.selectable:focus,
+.react-flow__node-output.selectable:focus,
+.react-flow__node-default.selectable:focus,
+.react-flow__node-input.selectable:focus-visible,
+.react-flow__node-output.selectable:focus-visible,
+.react-flow__node-default.selectable:focus-visible {
+  box-shadow: none !important;
+}
