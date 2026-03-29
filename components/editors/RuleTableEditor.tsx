@@ -2,12 +2,12 @@
 
 import React, { useState, useCallback, useMemo, useEffect, useRef, CSSProperties } from "react";
 import { Plus, X } from "lucide-react";
-import type { DSL, Rule, DecisionRow, Condition, SchemaField } from "@/lib/types";
+import type { DSL, RuleNode, DecisionRow, Condition, SchemaField, Strategy } from "@/lib/types";
 import Button from "@/components/ui/Button";
 
 interface RuleTableEditorProps {
   dsl: DSL;
-  ruleId: string;
+  nodeId: string;
   onChange: (dsl: DSL) => void;
 }
 
@@ -333,78 +333,78 @@ function OutputCell({
 
 // --- Main component ---
 
-export default function RuleTableEditor({ dsl, ruleId, onChange }: RuleTableEditorProps) {
-  const rule = dsl.rules.find((r) => r.id === ruleId);
-  if (!rule) return <div style={emptyStyle}>Rule not found</div>;
+export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEditorProps) {
+  const node = dsl.nodes.find((n) => n.id === nodeId);
+  if (!node) return <div style={emptyStyle}>Rule node not found</div>;
 
-  const allSchemaFields = useMemo(() => Object.entries(dsl.schema), [dsl.schema]);
+  const allSchemaFields = useMemo(() => Object.entries(node.schema), [node.schema]);
 
-  const updateRule = useCallback(
-    (updater: (r: Rule) => Rule) => {
+  const updateNode = useCallback(
+    (updater: (n: RuleNode) => RuleNode) => {
       onChange({
         ...dsl,
-        rules: dsl.rules.map((r) => (r.id === ruleId ? updater(r) : r)),
+        nodes: dsl.nodes.map((n) => (n.id === nodeId ? updater(n) : n)),
       });
     },
-    [dsl, ruleId, onChange]
+    [dsl, nodeId, onChange]
   );
 
   const addInputColumn = useCallback((field: string) => {
-    updateRule((r) => ({ ...r, inputColumns: [...r.inputColumns, field] }));
-  }, [updateRule]);
+    updateNode((n) => ({ ...n, inputColumns: [...n.inputColumns, field] }));
+  }, [updateNode]);
 
   const removeInputColumn = useCallback((field: string) => {
-    updateRule((r) => ({
-      ...r,
-      inputColumns: r.inputColumns.filter((f) => f !== field),
-      rows: r.rows.map((row) => {
+    updateNode((n) => ({
+      ...n,
+      inputColumns: n.inputColumns.filter((f) => f !== field),
+      rows: n.rows.map((row) => {
         const conditions = { ...row.conditions };
         delete conditions[field];
         return { ...row, conditions };
       }),
     }));
-  }, [updateRule]);
+  }, [updateNode]);
 
   const addOutputColumn = useCallback((key: string) => {
-    updateRule((r) => ({
-      ...r,
-      outputColumns: [...r.outputColumns, key],
-      rows: r.rows.map((row) => ({ ...row, outputs: { ...row.outputs, [key]: "" } })),
+    updateNode((n) => ({
+      ...n,
+      outputColumns: [...n.outputColumns, key],
+      rows: n.rows.map((row) => ({ ...row, outputs: { ...row.outputs, [key]: "" } })),
     }));
-  }, [updateRule]);
+  }, [updateNode]);
 
   const removeOutputColumn = useCallback((key: string) => {
-    updateRule((r) => ({
-      ...r,
-      outputColumns: r.outputColumns.filter((k) => k !== key),
-      rows: r.rows.map((row) => {
+    updateNode((n) => ({
+      ...n,
+      outputColumns: n.outputColumns.filter((k) => k !== key),
+      rows: n.rows.map((row) => {
         const outputs = { ...row.outputs };
         delete outputs[key];
         return { ...row, outputs };
       }),
     }));
-  }, [updateRule]);
+  }, [updateNode]);
 
   const makeRow = useCallback((): DecisionRow => ({
     id: typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
       : Date.now().toString(),
     conditions: {},
-    outputs: Object.fromEntries(rule.outputColumns.map((k) => [k, ""])),
-  }), [rule.outputColumns]);
+    outputs: Object.fromEntries(node.outputColumns.map((k) => [k, ""])),
+  }), [node.outputColumns]);
 
   const addRow = useCallback(() => {
-    updateRule((r) => ({ ...r, rows: [...r.rows, makeRow()] }));
-  }, [updateRule, makeRow]);
+    updateNode((n) => ({ ...n, rows: [...n.rows, makeRow()] }));
+  }, [updateNode, makeRow]);
 
   const deleteRow = useCallback((rowId: string) => {
-    updateRule((r) => ({ ...r, rows: r.rows.filter((row) => row.id !== rowId) }));
-  }, [updateRule]);
+    updateNode((n) => ({ ...n, rows: n.rows.filter((row) => row.id !== rowId) }));
+  }, [updateNode]);
 
   const updateRowCondition = useCallback((rowId: string, field: string, condition: Condition | null) => {
-    updateRule((r) => ({
-      ...r,
-      rows: r.rows.map((row) => {
+    updateNode((n) => ({
+      ...n,
+      rows: n.rows.map((row) => {
         if (row.id !== rowId) return row;
         const conditions = { ...row.conditions };
         if (condition) {
@@ -415,25 +415,25 @@ export default function RuleTableEditor({ dsl, ruleId, onChange }: RuleTableEdit
         return { ...row, conditions };
       }),
     }));
-  }, [updateRule]);
+  }, [updateNode]);
 
   const updateRowOutput = useCallback((rowId: string, key: string, value: string) => {
-    updateRule((r) => ({
-      ...r,
-      rows: r.rows.map((row) => {
+    updateNode((n) => ({
+      ...n,
+      rows: n.rows.map((row) => {
         if (row.id !== rowId) return row;
         return { ...row, outputs: { ...row.outputs, [key]: value === "" ? undefined : value } };
       }),
     }));
-  }, [updateRule]);
+  }, [updateNode]);
 
   useEffect(() => {
-    if ((rule.inputColumns.length > 0 || rule.outputColumns.length > 0) && rule.rows.length === 0) {
+    if ((node.inputColumns.length > 0 || node.outputColumns.length > 0) && node.rows.length === 0) {
       addRow();
     }
-  }, [rule.inputColumns.length, rule.outputColumns.length, rule.rows.length, addRow]);
+  }, [node.inputColumns.length, node.outputColumns.length, node.rows.length, addRow]);
 
-  const { inputColumns, outputColumns, rows } = rule;
+  const { inputColumns, outputColumns, rows } = node;
   const inputCount = inputColumns.length;
   const outputCount = outputColumns.length;
   // total columns: # + inputs + outputs + actions
@@ -494,7 +494,7 @@ export default function RuleTableEditor({ dsl, ruleId, onChange }: RuleTableEdit
                           <div style={colHeaderLabelStyle}>{fieldLabel(field)}</div>
                           <div style={colHeaderFieldStyle}>
                             {field}
-                            <span style={colHeaderTypeBadge}>{dsl.schema[field]?.type ?? "?"}</span>
+                            <span style={colHeaderTypeBadge}>{node.schema[field]?.type ?? "?"}</span>
                           </div>
                         </div>
                         <button type="button" onClick={() => removeInputColumn(field)} style={colRemoveBtnStyle} title={`Remove ${field}`}>
@@ -558,7 +558,7 @@ export default function RuleTableEditor({ dsl, ruleId, onChange }: RuleTableEdit
                       >
                         <ConditionCell
                           condition={row.conditions[field]}
-                          fieldDef={dsl.schema[field]}
+                          fieldDef={node.schema[field]}
                           onSave={(c) => updateRowCondition(row.id, field, c)}
                         />
                       </td>

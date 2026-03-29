@@ -21,15 +21,11 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
-import type { DSL, Rule } from "@/lib/types";
-import InputNode from "./NodeTypes/InputNode";
+import type { DSL, RuleNode as RuleNodeType, DSLEdge } from "@/lib/types";
 import RuleNode from "./NodeTypes/RuleNode";
-import OutputNode from "./NodeTypes/OutputNode";
 
 const nodeTypes = {
-  input: InputNode,
   rule: RuleNode,
-  output: OutputNode,
 };
 
 const EDGE_STYLE = { stroke: "var(--border-med)", strokeWidth: 1.5 };
@@ -46,26 +42,19 @@ function layoutNodes(nodes: Node[], edges: Edge[]): Node[] {
   g.setGraph({ rankdir: "LR", nodesep: 40, ranksep: 200 });
 
   for (const node of nodes) {
-    g.setNode(node.id, { width: 200, height: node.type === "rule" ? 100 : 80 });
+    g.setNode(node.id, { width: 200, height: 100 });
   }
   for (const edge of edges) {
     g.setEdge(edge.source, edge.target);
-  }
-
-  // Always connect input→output so dagre places them left-to-right even without rules
-  if (!edges.some((e) => e.source === "__input__" && e.target === "__output__")) {
-    g.setEdge("__input__", "__output__");
   }
 
   dagre.layout(g);
 
   return nodes.map((node) => {
     const pos = g.node(node.id);
-    const w = 200;
-    const h = node.type === "rule" ? 100 : 80;
     return {
       ...node,
-      position: { x: pos.x - w / 2, y: pos.y - h / 2 },
+      position: { x: pos.x - 100, y: pos.y - 50 },
     };
   });
 }
@@ -74,53 +63,21 @@ function buildNodes(
   dsl: DSL,
   onEditTable: (id: string) => void
 ): Node[] {
-  const schemaFields = Object.keys(dsl.schema);
-  const nodes: Node[] = [];
-
-  nodes.push({
-    id: "__input__",
-    type: "input",
+  return dsl.nodes.map((node) => ({
+    id: node.id,
+    type: "rule",
     position: { x: 0, y: 0 },
-    data: { schema: dsl.schema },
-  });
-
-  for (const rule of dsl.rules) {
-    nodes.push({
-      id: rule.id,
-      type: "rule",
-      position: { x: 0, y: 0 },
-      data: { rule, schemaFields, onEditTable },
-    });
-  }
-
-  nodes.push({
-    id: "__output__",
-    type: "output",
-    position: { x: 0, y: 0 },
-    data: { defaultOutput: dsl.default },
-  });
-
-  return nodes;
+    data: { node, onEditTable },
+  }));
 }
 
-// Build default edges for initial load (all rules connected input→rule→output)
-function buildDefaultEdges(dsl: DSL): Edge[] {
-  const edges: Edge[] = [];
-  for (const rule of dsl.rules) {
-    edges.push({
-      id: `input-${rule.id}`,
-      source: "__input__",
-      target: rule.id,
-      style: EDGE_STYLE,
-    });
-    edges.push({
-      id: `${rule.id}-output`,
-      source: rule.id,
-      target: "__output__",
-      style: EDGE_STYLE,
-    });
-  }
-  return edges;
+function buildEdgesFromDsl(dsl: DSL): Edge[] {
+  return dsl.edges.map((e) => ({
+    id: `${e.from}-${e.to}`,
+    source: e.from,
+    target: e.to,
+    style: EDGE_STYLE,
+  }));
 }
 
 function DraggableComponent({ type, icon, label }: { type: string; icon: string; label: string }) {
@@ -176,10 +133,10 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
     [onOpenTable]
   );
 
-  // Initial build: nodes + default edges, laid out together
+  // Initial build: nodes + edges from DSL, laid out together
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes = buildNodes(dsl, handleEditTable);
-    const edges = buildDefaultEdges(dsl);
+    const edges = buildEdgesFromDsl(dsl);
     const laid = layoutNodes(nodes, edges);
     return { initialNodes: laid, initialEdges: edges };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -187,8 +144,8 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Sync nodes when DSL changes, but preserve existing edges + only remove edges for deleted rules
-  const prevRuleIdsRef = useRef(new Set(dsl.rules.map((r) => r.id)));
+  // Sync nodes when DSL changes, preserve existing positions
+  const prevNodeIdsRef = useRef(new Set(dsl.nodes.map((n) => n.id)));
 
   useEffect(() => {
     if (isInitialLoad.current) {
@@ -196,30 +153,26 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
       return;
     }
 
-    const currentRuleIds = new Set(dsl.rules.map((r) => r.id));
-    const prevRuleIds = prevRuleIdsRef.current;
+    const currentNodeIds = new Set(dsl.nodes.map((n) => n.id));
+    const prevNodeIds = prevNodeIdsRef.current;
 
-    // Find deleted rule IDs
     const deletedIds = new Set<string>();
-    prevRuleIds.forEach((id) => {
-      if (!currentRuleIds.has(id)) deletedIds.add(id);
+    prevNodeIds.forEach((id) => {
+      if (!currentNodeIds.has(id)) deletedIds.add(id);
     });
 
-    prevRuleIdsRef.current = currentRuleIds;
+    prevNodeIdsRef.current = currentNodeIds;
 
-    // Rebuild nodes (always reflects DSL)
     const newNodes = buildNodes(dsl, handleEditTable);
 
-    // Remove edges that reference deleted nodes, keep everything else
+    // Remove edges that reference deleted nodes
     setEdges((prevEdges) =>
       prevEdges.filter(
         (e) => !deletedIds.has(e.source) && !deletedIds.has(e.target)
       )
     );
 
-    // Layout nodes with current edges
     setNodes((prevNodes) => {
-      // Preserve existing positions for nodes that haven't changed
       const posMap = new Map<string, { x: number; y: number }>();
       prevNodes.forEach((n) => posMap.set(n.id, n.position));
 
@@ -228,7 +181,6 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
         if (existingPos) {
           return { ...n, position: existingPos };
         }
-        // New node: position it to the right of the rightmost existing node
         const maxX = prevNodes.reduce((max, pn) => Math.max(max, pn.position.x), 0);
         const midY = prevNodes.reduce((sum, pn) => sum + pn.position.y, 0) / (prevNodes.length || 1);
         return { ...n, position: { x: maxX + 250, y: midY } };
@@ -236,28 +188,55 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
     });
   }, [dsl, handleEditTable, setNodes, setEdges]);
 
+  // Sync ReactFlow edges back to DSL
+  const syncEdgesToDsl = useCallback(
+    (rfEdges: Edge[]) => {
+      const nodeIds = new Set(dsl.nodes.map((n) => n.id));
+      const dslEdges: DSLEdge[] = rfEdges
+        .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
+        .map((e) => {
+          const existing = dsl.edges.find((de) => de.from === e.source && de.to === e.target);
+          return { from: e.source, to: e.target, ...(existing?.map ? { map: existing.map } : {}) };
+        });
+      if (JSON.stringify(dslEdges) !== JSON.stringify(dsl.edges)) {
+        onChange({ ...dsl, edges: dslEdges });
+      }
+    },
+    [dsl, onChange]
+  );
+
   // Manual handle-to-handle connect
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
-      setEdges((eds) =>
-        addEdge({ ...connection, style: EDGE_STYLE }, eds)
-      );
+      setEdges((eds) => {
+        const next = addEdge({ ...connection, style: EDGE_STYLE }, eds);
+        syncEdgesToDsl(next);
+        return next;
+      });
     },
-    [setEdges]
+    [setEdges, syncEdgesToDsl]
   );
 
   const onReconnect: OnReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
-      setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds));
+      setEdges((eds) => {
+        const next = reconnectEdge(oldEdge, newConnection, eds);
+        syncEdgesToDsl(next);
+        return next;
+      });
     },
-    [setEdges]
+    [setEdges, syncEdgesToDsl]
   );
 
   const onEdgesDelete = useCallback(
     (deletedEdges: Edge[]) => {
-      setEdges((eds) => eds.filter((e) => !deletedEdges.find((de) => de.id === e.id)));
+      setEdges((eds) => {
+        const next = eds.filter((e) => !deletedEdges.find((de) => de.id === e.id));
+        syncEdgesToDsl(next);
+        return next;
+      });
     },
-    [setEdges]
+    [setEdges, syncEdgesToDsl]
   );
 
   const handleKeyDown = useCallback(
@@ -266,53 +245,49 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
         const selectedNodes = nodes.filter((n) => n.selected && n.type === "rule");
         if (selectedNodes.length === 0) return;
         const idsToDelete = new Set(selectedNodes.map((n) => n.id));
-        const newRules = dsl.rules.filter((r) => !idsToDelete.has(r.id));
-        onChange({ ...dsl, rules: newRules });
+        const newNodes = dsl.nodes.filter((n) => !idsToDelete.has(n.id));
+        const newEdges = dsl.edges.filter((e) => !idsToDelete.has(e.from) && !idsToDelete.has(e.to));
+        const newEntry = idsToDelete.has(dsl.entry) ? (newNodes[0]?.id ?? "") : dsl.entry;
+        onChange({ ...dsl, nodes: newNodes, edges: newEdges, entry: newEntry });
       }
     },
     [nodes, dsl, onChange]
   );
 
-  // Drop from sidebar: add rule, no edges
-  const addRuleOnly = useCallback(() => {
-    const newRule: Rule = {
-      id: crypto.randomUUID(),
-      name: `Rule ${dsl.rules.length + 1}`,
-      inputColumns: [],
-      outputColumns: [],
-      rows: [],
-    };
-    onChange({ ...dsl, rules: [...dsl.rules, newRule] });
-  }, [dsl, onChange]);
+  const makeNewNode = useCallback((): RuleNodeType => ({
+    id: crypto.randomUUID(),
+    name: `Rule ${dsl.nodes.length + 1}`,
+    strategy: "first_match",
+    schema: {},
+    inputColumns: [],
+    outputColumns: [],
+    rows: [],
+  }), [dsl.nodes.length]);
 
-  // Add rule + connect to a specific handle
+  // Drop from sidebar: add node, no edges
+  const addRuleOnly = useCallback(() => {
+    const newNode = makeNewNode();
+    const entry = dsl.nodes.length === 0 ? newNode.id : dsl.entry;
+    onChange({ ...dsl, nodes: [...dsl.nodes, newNode], entry });
+  }, [dsl, onChange, makeNewNode]);
+
+  // Add node + connect to a specific handle
   const addRuleAndConnect = useCallback(
     (sourceNodeId: string, sourceHandleType: "source" | "target") => {
-      const newRuleId = crypto.randomUUID();
-      const newRule: Rule = {
-        id: newRuleId,
-        name: `Rule ${dsl.rules.length + 1}`,
-        inputColumns: [],
-        outputColumns: [],
-        rows: [],
-      };
+      const newNode = makeNewNode();
+      const newEdge: DSLEdge = sourceHandleType === "source"
+        ? { from: sourceNodeId, to: newNode.id }
+        : { from: newNode.id, to: sourceNodeId };
 
-      // Pre-add the edge so it's there when the DSL sync runs
-      if (sourceHandleType === "source") {
-        setEdges((eds) => [
-          ...eds,
-          { id: `${sourceNodeId}-${newRuleId}`, source: sourceNodeId, target: newRuleId, style: EDGE_STYLE },
-        ]);
-      } else {
-        setEdges((eds) => [
-          ...eds,
-          { id: `${newRuleId}-${sourceNodeId}`, source: newRuleId, target: sourceNodeId, style: EDGE_STYLE },
-        ]);
-      }
+      setEdges((eds) => [
+        ...eds,
+        { id: `${newEdge.from}-${newEdge.to}`, source: newEdge.from, target: newEdge.to, style: EDGE_STYLE },
+      ]);
 
-      onChange({ ...dsl, rules: [...dsl.rules, newRule] });
+      const entry = dsl.nodes.length === 0 ? newNode.id : dsl.entry;
+      onChange({ ...dsl, nodes: [...dsl.nodes, newNode], edges: [...dsl.edges, newEdge], entry });
     },
-    [dsl, onChange, setEdges]
+    [dsl, onChange, setEdges, makeNewNode]
   );
 
   // Track connection drag start

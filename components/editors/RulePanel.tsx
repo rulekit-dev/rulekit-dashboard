@@ -1,14 +1,14 @@
 "use client";
 
 import React, { CSSProperties } from "react";
-import type { Rule } from "@/lib/types";
+import type { RuleNode } from "@/lib/types";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 
 interface RulePanelProps {
-  rule: Rule | null;
+  rule: RuleNode | null;
   schema: Record<string, { type: string }>;
-  onChange: (rule: Rule) => void;
+  onChange: (rule: RuleNode) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
   onEditTable?: (id: string) => void;

@@ -42,12 +42,29 @@ export interface VersionManifest {
   created_at: string;
 }
 
+export type Strategy = "first_match" | "all_matches";
+
+export interface RuleNode {
+  id: string;
+  name: string;
+  strategy: Strategy;
+  schema: Record<string, SchemaField>;
+  inputColumns: string[];
+  outputColumns: string[];
+  rows: DecisionRow[];
+}
+
+export interface DSLEdge {
+  from: string;
+  to: string;
+  map?: Record<string, string>;
+}
+
 export interface DSL {
   dsl_version: "v1";
-  strategy: "first_match" | "all_matches";
-  schema: Record<string, SchemaField>;
-  rules: Rule[];
-  default?: Record<string, unknown>;
+  entry: string;
+  nodes: RuleNode[];
+  edges: DSLEdge[];
 }
 
 export interface DecisionRow {
@@ -56,15 +73,8 @@ export interface DecisionRow {
   outputs: Record<string, unknown>;
 }
 
-export interface Rule {
-  id: string;
-  name: string;
-  inputColumns: string[];
-  outputColumns: string[];
-  rows: DecisionRow[];
-}
 
-// API-facing rule format (what the backend expects)
+// API-facing formats (what the backend expects)
 export interface ApiRule {
   id: string;
   name: string;
@@ -72,107 +82,108 @@ export interface ApiRule {
   then: Record<string, unknown>;
 }
 
-export interface ApiDSL {
-  dsl_version: "v1";
-  strategy: "first_match" | "all_matches";
+export interface ApiNode {
+  id: string;
+  strategy: Strategy;
   schema: Record<string, SchemaField>;
   rules: ApiRule[];
-  default?: Record<string, unknown>;
+}
+
+export interface ApiDSL {
+  dsl_version: "v1";
+  entry: string;
+  nodes: ApiNode[];
+  edges: DSLEdge[];
+}
+
+// Convert a single RuleNode's rows → ApiRules
+function nodeRowsToApiRules(node: RuleNode): ApiRule[] {
+  const apiRules: ApiRule[] = [];
+  if (node.rows.length === 0) {
+    return apiRules;
+  }
+  for (let i = 0; i < node.rows.length; i++) {
+    const row = node.rows[i];
+    const when: Condition[] = [];
+    for (const field of node.inputColumns) {
+      const cond = row.conditions[field];
+      if (cond) when.push({ field, op: cond.op, value: cond.value });
+    }
+    const then: Record<string, unknown> = {};
+    for (const key of node.outputColumns) {
+      if (row.outputs[key] !== undefined) then[key] = row.outputs[key];
+    }
+    apiRules.push({
+      id: node.rows.length === 1 ? `${node.id}_r0` : `${node.id}_r${i}`,
+      name: node.rows.length === 1 ? node.name : `${node.name || "Untitled"} #${i + 1}`,
+      when,
+      then,
+    });
+  }
+  return apiRules;
+}
+
+// Convert API rules back to UI rows for a single node
+function apiRulesToNodeRows(apiRules: ApiRule[]): { inputColumns: string[]; outputColumns: string[]; rows: DecisionRow[] } {
+  const inputFieldsSet = new Set<string>();
+  const outputKeysSet = new Set<string>();
+  const rows: DecisionRow[] = [];
+
+  for (const apiRule of apiRules) {
+    for (const cond of apiRule.when) inputFieldsSet.add(cond.field);
+    for (const key of Object.keys(apiRule.then)) outputKeysSet.add(key);
+
+    const conditions: Record<string, Condition> = {};
+    for (const cond of apiRule.when) {
+      conditions[cond.field] = cond;
+    }
+    rows.push({
+      id: crypto.randomUUID(),
+      conditions,
+      outputs: { ...apiRule.then },
+    });
+  }
+
+  return {
+    inputColumns: Array.from(inputFieldsSet),
+    outputColumns: Array.from(outputKeysSet),
+    rows,
+  };
 }
 
 // Convert UI DSL → API DSL (for saving)
-// Each DecisionRow becomes a separate API rule
 export function dslToApi(dsl: DSL): ApiDSL {
-  const apiRules: ApiRule[] = [];
-  for (const rule of dsl.rules) {
-    if (rule.rows.length === 0) {
-      apiRules.push({ id: rule.id, name: rule.name, when: [], then: {} });
-      continue;
-    }
-    for (let i = 0; i < rule.rows.length; i++) {
-      const row = rule.rows[i];
-      const when: Condition[] = [];
-      for (const field of rule.inputColumns) {
-        const cond = row.conditions[field];
-        if (cond) when.push({ field, op: cond.op, value: cond.value });
-      }
-      const then: Record<string, unknown> = {};
-      for (const key of rule.outputColumns) {
-        if (row.outputs[key] !== undefined) then[key] = row.outputs[key];
-      }
-      apiRules.push({
-        id: rule.rows.length === 1 ? rule.id : `${rule.id}__row_${i}`,
-        name: rule.rows.length === 1 ? rule.name : `${rule.name || "Untitled"} #${i + 1}`,
-        when,
-        then,
-      });
-    }
-  }
   return {
     dsl_version: dsl.dsl_version,
-    strategy: dsl.strategy,
-    schema: dsl.schema,
-    rules: apiRules,
-    default: dsl.default,
+    entry: dsl.entry,
+    nodes: dsl.nodes.map((node) => ({
+      id: node.id,
+      strategy: node.strategy,
+      schema: node.schema,
+      rules: nodeRowsToApiRules(node),
+    })),
+    edges: dsl.edges,
   };
 }
 
 // Convert API DSL → UI DSL (for loading)
-// Groups API rules back into decision tables by detecting __row_ suffix
 export function apiToDsl(apiDsl: ApiDSL): DSL {
-  const ruleGroups = new Map<string, { name: string; apiRules: ApiRule[] }>();
-  const order: string[] = [];
-
-  for (const apiRule of apiDsl.rules) {
-    const rowMatch = apiRule.id.match(/^(.+)__row_\d+$/);
-    const baseId = rowMatch ? rowMatch[1] : apiRule.id;
-    const baseName = rowMatch
-      ? apiRule.name.replace(/ #\d+$/, "")
-      : apiRule.name;
-
-    if (!ruleGroups.has(baseId)) {
-      ruleGroups.set(baseId, { name: baseName, apiRules: [] });
-      order.push(baseId);
-    }
-    ruleGroups.get(baseId)!.apiRules.push(apiRule);
-  }
-
-  const rules: Rule[] = order.map((baseId) => {
-    const group = ruleGroups.get(baseId)!;
-    const inputFieldsSet = new Set<string>();
-    const outputKeysSet = new Set<string>();
-    const rows: DecisionRow[] = [];
-
-    for (const apiRule of group.apiRules) {
-      for (const cond of apiRule.when) inputFieldsSet.add(cond.field);
-      for (const key of Object.keys(apiRule.then)) outputKeysSet.add(key);
-
-      const conditions: Record<string, Condition> = {};
-      for (const cond of apiRule.when) {
-        conditions[cond.field] = cond;
-      }
-      rows.push({
-        id: apiRule.id.includes("__row_") ? apiRule.id : crypto.randomUUID(),
-        conditions,
-        outputs: { ...apiRule.then },
-      });
-    }
-
-    return {
-      id: baseId,
-      name: group.name,
-      inputColumns: Array.from(inputFieldsSet),
-      outputColumns: Array.from(outputKeysSet),
-      rows,
-    };
-  });
-
   return {
     dsl_version: apiDsl.dsl_version,
-    strategy: apiDsl.strategy,
-    schema: apiDsl.schema,
-    rules,
-    default: apiDsl.default,
+    entry: apiDsl.entry,
+    nodes: apiDsl.nodes.map((apiNode) => {
+      const { inputColumns, outputColumns, rows } = apiRulesToNodeRows(apiNode.rules);
+      return {
+        id: apiNode.id,
+        name: apiNode.id,
+        strategy: apiNode.strategy,
+        schema: apiNode.schema,
+        inputColumns,
+        outputColumns,
+        rows,
+      };
+    }),
+    edges: apiDsl.edges || [],
   };
 }
 

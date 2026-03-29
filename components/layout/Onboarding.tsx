@@ -107,7 +107,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               label="Workspace name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. production"
+              placeholder="e.g. core-payment"
               mono
               error={nameError}
               hint="Lowercase letters, numbers, hyphens, underscores"

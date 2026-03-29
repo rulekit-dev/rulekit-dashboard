@@ -2,21 +2,21 @@
 
 import React, { CSSProperties } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import type { Rule } from "@/lib/types";
+import type { RuleNode as RuleNodeType } from "@/lib/types";
 
 interface RuleNodeData {
-  rule: Rule;
-  schemaFields: string[];
+  node: RuleNodeType;
   onEditTable?: (id: string) => void;
   [key: string]: unknown;
 }
 
 export default function RuleNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as RuleNodeData;
-  const { rule, onEditTable } = nodeData;
-  const rowCount = rule.rows?.length ?? 0;
-  const inputCols = rule.inputColumns ?? [];
-  const outputCols = rule.outputColumns ?? [];
+  const { node, onEditTable } = nodeData;
+  const rowCount = node.rows?.length ?? 0;
+  const inputCols = node.inputColumns ?? [];
+  const outputCols = node.outputColumns ?? [];
+  const schemaCount = Object.keys(node.schema).length;
 
   const cardStyle: CSSProperties = {
     background: "white",
@@ -36,12 +36,12 @@ export default function RuleNode({ data, selected }: NodeProps) {
       <Handle type="target" position={Position.Left} style={leftHandleStyle} />
       <div style={headerStyle}>
         <div style={iconStyle}>R</div>
-        <div style={titleStyle}>{rule.name || "Untitled"}</div>
-        <div style={tagStyle}>RULE</div>
+        <div style={titleStyle}>{node.name || "Untitled"}</div>
+        <div style={tagStyle}>{node.strategy === "all_matches" ? "ALL" : "FIRST"}</div>
       </div>
       <div style={bodyStyle}>
         <div style={summaryRowStyle}>
-          <span style={{ color: "var(--ink-muted)" }}>{rowCount} row{rowCount !== 1 ? "s" : ""}</span>
+          <span style={{ color: "var(--ink-muted)" }}>{schemaCount} field{schemaCount !== 1 ? "s" : ""} · {rowCount} row{rowCount !== 1 ? "s" : ""}</span>
         </div>
         {inputCols.length > 0 && (
           <div style={summaryRowStyle}>
@@ -64,7 +64,7 @@ export default function RuleNode({ data, selected }: NodeProps) {
           style={editRuleBtnStyle}
           onClick={(e) => {
             e.stopPropagation();
-            onEditTable?.(rule.id);
+            onEditTable?.(node.id);
           }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange-deep)"; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange)"; }}

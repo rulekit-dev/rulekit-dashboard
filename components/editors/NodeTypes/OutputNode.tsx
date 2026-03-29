@@ -2,10 +2,8 @@
 
 import React, { CSSProperties } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import type { DSL } from "@/lib/types";
-
 interface OutputNodeData {
-  defaultOutput?: DSL["default"];
+  defaultOutput?: Record<string, unknown>;
   [key: string]: unknown;
 }
 

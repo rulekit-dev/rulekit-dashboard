@@ -9,7 +9,6 @@ import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import PageHeader from "@/components/layout/PageHeader";
 import VersionsPanel from "@/components/editors/VersionsPanel";
-import FieldsEditor from "@/components/editors/FieldsEditor";
 import RuleTableEditor from "@/components/editors/RuleTableEditor";
 import Canvas from "@/components/editors/Canvas";
 import SimulatorPanel from "@/components/editors/SimulatorPanel";
@@ -18,20 +17,19 @@ import Skeleton from "@/components/ui/Skeleton";
 
 const emptyDsl: DSL = {
   dsl_version: "v1",
-  strategy: "first_match",
-  schema: {},
-  rules: [],
+  entry: "",
+  nodes: [],
+  edges: [],
 };
 
 interface EditorTab {
   id: string;
   label: string;
-  type: "versions" | "fields" | "canvas" | "table";
-  ruleId?: string;
+  type: "versions" | "canvas" | "table";
+  nodeId?: string;
 }
 
 const VERSIONS_TAB: EditorTab = { id: "__versions__", label: "Versions", type: "versions" };
-const FIELDS_TAB: EditorTab = { id: "__fields__", label: "Fields", type: "fields" };
 const CANVAS_TAB: EditorTab = { id: "__canvas__", label: "Canvas", type: "canvas" };
 
 export default function RulesetEditorPage() {
@@ -49,8 +47,8 @@ export default function RulesetEditorPage() {
   const [publishSuccess, setPublishSuccess] = useState(false);
   const publishTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const [tabs, setTabs] = useState<EditorTab[]>([VERSIONS_TAB, FIELDS_TAB, CANVAS_TAB]);
-  const [activeTabId, setActiveTabId] = useState(FIELDS_TAB.id);
+  const [tabs, setTabs] = useState<EditorTab[]>([VERSIONS_TAB, CANVAS_TAB]);
+  const [activeTabId, setActiveTabId] = useState(CANVAS_TAB.id);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
 
   const canEdit = hasRole(workspace, 3);
@@ -77,29 +75,29 @@ export default function RulesetEditorPage() {
   }, [workspace, key, toast]);
 
   const handleOpenTable = useCallback(
-    (ruleId: string) => {
-      const existing = tabs.find((t) => t.ruleId === ruleId);
+    (nodeId: string) => {
+      const existing = tabs.find((t) => t.nodeId === nodeId);
       if (existing) {
         setActiveTabId(existing.id);
         return;
       }
-      const rule = dsl.rules.find((r) => r.id === ruleId);
-      const label = rule?.name || "Untitled";
+      const node = dsl.nodes.find((n) => n.id === nodeId);
+      const label = node?.name || "Untitled";
       const newTab: EditorTab = {
-        id: `table_${ruleId}`,
+        id: `table_${nodeId}`,
         label,
         type: "table",
-        ruleId,
+        nodeId,
       };
       setTabs((prev) => [...prev, newTab]);
       setActiveTabId(newTab.id);
     },
-    [tabs, dsl.rules]
+    [tabs, dsl.nodes]
   );
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
-      if (tabId === VERSIONS_TAB.id || tabId === FIELDS_TAB.id || tabId === CANVAS_TAB.id) return;
+      if (tabId === VERSIONS_TAB.id || tabId === CANVAS_TAB.id) return;
       setTabs((prev) => prev.filter((t) => t.id !== tabId));
       if (activeTabId === tabId) {
         setActiveTabId(CANVAS_TAB.id);
@@ -150,32 +148,28 @@ export default function RulesetEditorPage() {
     }
   };
 
-  const handleSchemaChange = (schema: DSL["schema"]) => {
-    setDsl((prev) => ({ ...prev, schema }));
-  };
-
   const activeTab = tabs.find((t) => t.id === activeTabId) || CANVAS_TAB;
 
-  // Sync tab labels to rule names
+  // Sync tab labels to node names
   useEffect(() => {
     setTabs((prev) =>
       prev.map((tab) => {
-        if (tab.type !== "table" || !tab.ruleId) return tab;
-        const rule = dsl.rules.find((r) => r.id === tab.ruleId);
-        if (!rule) return tab;
-        const label = rule.name || "Untitled";
+        if (tab.type !== "table" || !tab.nodeId) return tab;
+        const node = dsl.nodes.find((n) => n.id === tab.nodeId);
+        if (!node) return tab;
+        const label = node.name || "Untitled";
         if (tab.label === label) return tab;
         return { ...tab, label };
       })
     );
-  }, [dsl.rules]);
+  }, [dsl.nodes]);
 
-  // Remove tabs for deleted rules
+  // Remove tabs for deleted nodes
   useEffect(() => {
-    const ruleIds = new Set(dsl.rules.map((r) => r.id));
+    const nodeIds = new Set(dsl.nodes.map((n) => n.id));
     setTabs((prev) => {
       const filtered = prev.filter(
-        (t) => t.type !== "table" || (t.ruleId && ruleIds.has(t.ruleId))
+        (t) => t.type !== "table" || (t.nodeId && nodeIds.has(t.nodeId))
       );
       if (filtered.length !== prev.length) {
         if (!filtered.find((t) => t.id === activeTabId)) {
@@ -185,7 +179,7 @@ export default function RulesetEditorPage() {
       }
       return prev;
     });
-  }, [dsl.rules, activeTabId]);
+  }, [dsl.nodes, activeTabId]);
 
   if (loading) {
     return (
@@ -202,7 +196,7 @@ export default function RulesetEditorPage() {
     <div style={pageStyle}>
       <PageHeader eyebrow={workspace} title={key} />
 
-      {/* Tab bar + strategy */}
+      {/* Tab bar */}
       <div style={tabBarContainerStyle}>
         <div style={tabListStyle}>
           {tabs.map((tab) => {
@@ -220,7 +214,6 @@ export default function RulesetEditorPage() {
                 }}
               >
                 {tab.type === "versions" && <VersionsIcon />}
-                {tab.type === "fields" && <FieldsIcon />}
                 {tab.type === "canvas" && <CanvasIcon />}
                 {tab.type === "table" && <TableIcon />}
                 <span>{tab.label}</span>
@@ -238,26 +231,6 @@ export default function RulesetEditorPage() {
             );
           })}
         </div>
-
-        <div style={tabBarRightStyle}>
-          <div style={strategyGroupStyle}>
-            <span style={strategyLabelStyle}>Strategy</span>
-            <select
-              value={dsl.strategy}
-              onChange={(e) =>
-                setDsl((prev) => ({
-                  ...prev,
-                  strategy: e.target.value as DSL["strategy"],
-                }))
-              }
-              disabled={!canEdit}
-              style={strategySelectStyle}
-            >
-              <option value="first_match">first_match</option>
-              <option value="all_matches">all_matches</option>
-            </select>
-          </div>
-        </div>
       </div>
 
       {/* Editor area */}
@@ -267,23 +240,14 @@ export default function RulesetEditorPage() {
             <VersionsPanel workspace={workspace} rulesetKey={key} />
           </div>
         )}
-        {activeTab.type === "fields" && (
-          <div style={scrollWrapperStyle}>
-            <FieldsEditor
-              schema={dsl.schema}
-              onChange={handleSchemaChange}
-              readOnly={!canEdit}
-            />
-          </div>
-        )}
         {activeTab.type === "canvas" && (
           <Canvas dsl={dsl} onChange={setDsl} onOpenTable={handleOpenTable} />
         )}
-        {activeTab.type === "table" && activeTab.ruleId && (
+        {activeTab.type === "table" && activeTab.nodeId && (
           <div style={scrollWrapperStyle}>
             <RuleTableEditor
               dsl={dsl}
-              ruleId={activeTab.ruleId}
+              nodeId={activeTab.nodeId}
               onChange={setDsl}
             />
           </div>
@@ -379,14 +343,6 @@ function VersionsIcon() {
   );
 }
 
-function FieldsIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M2 4H12M2 7H9M2 10H11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function CanvasIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
@@ -455,42 +411,6 @@ const tabCloseBtnStyle: CSSProperties = {
   cursor: "pointer",
   marginLeft: 2,
   padding: "0 2px",
-};
-
-const tabBarRightStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  flexShrink: 0,
-  paddingLeft: 16,
-};
-
-const strategyGroupStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-};
-
-const strategyLabelStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
-  fontSize: 10,
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "var(--ink-subtle)",
-};
-
-const strategySelectStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
-  fontSize: 11,
-  padding: "4px 8px",
-  borderRadius: 6,
-  borderWidth: "1px",
-  borderStyle: "solid",
-  borderColor: "var(--border-med)",
-  background: "var(--white)",
-  color: "var(--ink)",
-  cursor: "pointer",
-  outline: "none",
 };
 
 const editorAreaStyle: CSSProperties = {

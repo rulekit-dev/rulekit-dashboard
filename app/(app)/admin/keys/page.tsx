@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { APIKey, roleName, ROLE_VIEWER, ROLE_EDITOR, ROLE_ADMIN } from "@/lib/types";
 import * as api from "@/lib/api";
@@ -13,7 +13,6 @@ import Badge from "@/components/ui/Badge";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
-import Select from "@/components/ui/Select";
 import Skeleton from "@/components/ui/Skeleton";
 
 function formatDate(s?: string) {
@@ -38,6 +37,169 @@ function roleBadgeVariant(mask: number): "orange" | "blue" | "purple" {
   return "blue";
 }
 
+interface DropdownOption {
+  value: string;
+  label: string;
+}
+
+function FormDropdown({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder,
+  hint,
+}: {
+  label?: string;
+  value: string;
+  options: DropdownOption[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+  hint?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <div ref={ref} style={{ width: "100%" }}>
+      {label && <label style={ddLabelStyle}>{label}</label>}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen(!open)}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpen(!open); }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          ...ddTriggerStyle,
+          borderColor: open ? "var(--orange)" : hovered ? "var(--border-med)" : "var(--border-med)",
+          boxShadow: open ? "0 0 0 3px var(--orange-dim)" : "none",
+          background: open ? "var(--surface)" : hovered ? "var(--surface)" : "white",
+        }}
+      >
+        <span style={{ flex: 1, color: selected ? "var(--ink)" : "var(--ink-subtle)" }}>
+          {selected ? selected.label : (placeholder || "Select...")}
+        </span>
+        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" style={{ flexShrink: 0, opacity: 0.4, transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
+          <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      {open && (
+        <div style={ddMenuStyle}>
+          {options.map((opt) => {
+            const isSelected = opt.value === value;
+            const isHov = hoveredItem === opt.value;
+            return (
+              <div
+                key={opt.value}
+                role="button"
+                tabIndex={0}
+                onClick={() => { onChange(opt.value); setOpen(false); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { onChange(opt.value); setOpen(false); } }}
+                onMouseEnter={() => setHoveredItem(opt.value)}
+                onMouseLeave={() => setHoveredItem(null)}
+                style={{
+                  ...ddItemStyle,
+                  fontWeight: isSelected ? 600 : 500,
+                  color: isSelected ? "var(--orange-deep)" : isHov ? "var(--ink)" : "var(--ink-muted)",
+                  background: isSelected ? "var(--orange-dim)" : isHov ? "var(--surface)" : "transparent",
+                }}
+              >
+                {opt.label}
+                {isSelected && (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ marginLeft: "auto", flexShrink: 0 }}>
+                    <path d="M2.5 6.5L5 9L9.5 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {hint && <div style={ddHintStyle}>{hint}</div>}
+    </div>
+  );
+}
+
+const ddLabelStyle: CSSProperties = {
+  fontWeight: 600,
+  fontSize: 13,
+  color: "var(--ink)",
+  marginBottom: 6,
+  display: "block",
+};
+
+const ddTriggerStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  padding: "9px 12px",
+  border: "1px solid var(--border-med)",
+  borderRadius: 9,
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+  fontSize: 14,
+  fontWeight: 400,
+  color: "var(--ink)",
+  boxSizing: "border-box",
+};
+
+const ddMenuStyle: CSSProperties = {
+  marginTop: 4,
+  background: "var(--white)",
+  border: "1px solid var(--border-med)",
+  borderRadius: 9,
+  padding: 4,
+  maxHeight: 240,
+  overflowY: "auto",
+  boxShadow: "0 8px 32px rgba(28,28,26,0.12)",
+};
+
+const ddItemStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 9,
+  fontSize: 13,
+  padding: "7px 9px",
+  borderRadius: 6,
+  cursor: "pointer",
+  transition: "background 0.12s, color 0.12s",
+};
+
+const ddHintStyle: CSSProperties = {
+  fontWeight: 400,
+  fontSize: 12,
+  color: "var(--ink-muted)",
+  marginTop: 3,
+};
+
+const dateInputStyle: CSSProperties = {
+  width: "100%",
+  padding: "9px 12px",
+  border: "1px solid var(--border-med)",
+  borderRadius: 9,
+  fontSize: 14,
+  fontWeight: 400,
+  color: "var(--ink)",
+  background: "white",
+  boxSizing: "border-box",
+  outline: "none",
+  transition: "all 0.15s ease",
+};
+
 export default function AdminKeysPage() {
   const { isAdmin } = useAuth();
   const router = useRouter();
@@ -53,10 +215,11 @@ export default function AdminKeysPage() {
   const [name, setName] = useState("");
   const [workspace, setWorkspace] = useState("");
   const [role, setRole] = useState(String(ROLE_VIEWER));
-  const [expiresInDays, setExpiresInDays] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [workspaceOptions, setWorkspaceOptions] = useState<DropdownOption[]>([{ value: "*", label: "All Workspaces" }]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -68,6 +231,16 @@ export default function AdminKeysPage() {
       .then((res) => setKeys(Array.isArray(res) ? res : res.data || []))
       .catch((err) => toast("Error", err.message, "error"))
       .finally(() => setLoading(false));
+    api
+      .listWorkspaces()
+      .then((res) => {
+        const wsList = Array.isArray(res) ? res : res.data || [];
+        setWorkspaceOptions([
+          { value: "*", label: "All Workspaces" },
+          ...wsList.map((ws) => ({ value: ws.name, label: ws.name })),
+        ]);
+      })
+      .catch(() => {});
   }, [isAdmin, router, toast]);
 
   const handleRevoke = async () => {
@@ -99,10 +272,14 @@ export default function AdminKeysPage() {
       setFormError('Workspace must match [a-z0-9_-] or be "*"');
       return;
     }
-    const days = expiresInDays ? parseInt(expiresInDays) : undefined;
-    if (days !== undefined && (isNaN(days) || days < 0)) {
-      setFormError("Expires must be a non-negative number");
-      return;
+    let days: number | undefined;
+    if (expiresAt) {
+      const diff = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (diff < 1) {
+        setFormError("Expiration date must be in the future");
+        return;
+      }
+      days = diff;
     }
 
     setCreating(true);
@@ -119,7 +296,7 @@ export default function AdminKeysPage() {
       setName("");
       setWorkspace("");
       setRole(String(ROLE_VIEWER));
-      setExpiresInDays("");
+      setExpiresAt("");
     } catch (err: unknown) {
       const e = err as { message?: string };
       setFormError(e.message || "Failed to create key");
@@ -255,31 +432,35 @@ export default function AdminKeysPage() {
             onChange={(e) => setName(e.target.value)}
             placeholder="My API key"
           />
-          <Input
+          <FormDropdown
             label="Workspace"
             value={workspace}
-            onChange={(e) => setWorkspace(e.target.value)}
-            placeholder='e.g. "production" or "*"'
-            mono
-            hint='Use "*" for all workspaces'
+            options={workspaceOptions}
+            onChange={setWorkspace}
+            placeholder="Select workspace"
           />
-          <Select
+          <FormDropdown
             label="Role"
             value={role}
-            onChange={(e) => setRole(e.target.value)}
             options={[
               { value: String(ROLE_VIEWER), label: "Viewer" },
               { value: String(ROLE_EDITOR), label: "Editor" },
               { value: String(ROLE_ADMIN), label: "Admin" },
             ]}
+            onChange={setRole}
+            placeholder="Select role"
           />
-          <Input
-            label="Expires in (days)"
-            value={expiresInDays}
-            onChange={(e) => setExpiresInDays(e.target.value)}
-            placeholder="0 = never"
-            hint="Leave empty or 0 for no expiration"
-          />
+          <div>
+            <label style={ddLabelStyle}>Expires at</label>
+            <input
+              type="date"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              min={new Date(Date.now() + 86400000).toISOString().split("T")[0]}
+              style={dateInputStyle}
+            />
+            <div style={ddHintStyle}>Leave empty for no expiration</div>
+          </div>
           {formError && (
             <div
               style={{
