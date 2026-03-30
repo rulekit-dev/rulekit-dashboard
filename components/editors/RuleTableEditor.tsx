@@ -2,8 +2,7 @@
 
 import React, { useState, useCallback, useMemo, useEffect, useRef, CSSProperties } from "react";
 import { Plus, X } from "lucide-react";
-import type { DSL, RuleNode, DecisionRow, Condition, SchemaField, Strategy } from "@/lib/types";
-import Button from "@/components/ui/Button";
+import type { DSL, RuleNode, DecisionRow, Condition, SchemaField } from "@/lib/types";
 
 interface RuleTableEditorProps {
   dsl: DSL;
@@ -94,29 +93,20 @@ function InputColumnPicker({
 }
 
 function OutputColumnPicker({
-  existingKeys,
+  allFields,
+  selectedFields,
   onAdd,
 }: {
-  existingKeys: string[];
-  onAdd: (key: string) => void;
+  allFields: [string, SchemaField][];
+  selectedFields: string[];
+  onAdd: (field: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
-  const [key, setKey] = useState("");
-  const [error, setError] = useState(false);
+  const available = allFields.filter(([f]) => !selectedFields.includes(f));
 
-  const handleSubmit = () => {
-    const trimmed = key.trim();
-    if (!trimmed || !/^[a-z0-9_]+$/.test(trimmed) || existingKeys.includes(trimmed)) {
-      setError(true);
-      return;
-    }
-    onAdd(trimmed);
-    setKey("");
-    setError(false);
-    setOpen(false);
-  };
+  if (available.length === 0) return null;
 
   const handleOpen = () => {
     if (btnRef.current) {
@@ -133,29 +123,21 @@ function OutputColumnPicker({
       </button>
       {open && (
         <>
-          <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => { setOpen(false); setKey(""); setError(false); }} />
+          <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => setOpen(false)} />
           <div style={{ ...fixedDropdownStyle, top: pos.top, left: pos.left }}>
             <div style={pickerTitleStyle}>Add output column</div>
-            <div style={{ padding: "4px 8px", display: "flex", gap: 4 }}>
-              <input
-                autoFocus
-                value={key}
-                onChange={(e) => { setKey(e.target.value); setError(false); }}
-                onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); if (e.key === "Escape") { setOpen(false); setKey(""); setError(false); } }}
-                placeholder="output_key"
-                style={{
-                  ...inlineInputStyle,
-                  borderColor: error ? "#DC2626" : "var(--border-med)",
-                  flex: 1,
-                }}
-              />
-              <Button variant="primary" size="sm" onClick={handleSubmit}>Add</Button>
-            </div>
-            {error && (
-              <div style={{ fontSize: 10, color: "#DC2626", padding: "2px 12px 6px" }}>
-                Lowercase alphanumeric + underscores, must be unique.
-              </div>
-            )}
+            {available.map(([field, { type }]) => (
+              <button
+                key={field}
+                onClick={() => { onAdd(field); setOpen(false); }}
+                style={pickerItemStyle}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                <span style={{ fontFamily: "var(--font-dm-mono)", fontSize: 12 }}>{field}</span>
+                <span style={{ fontFamily: "var(--font-nunito)", fontSize: 10, color: "var(--orange)", marginLeft: "auto" }}>{type}</span>
+              </button>
+            ))}
           </div>
         </>
       )}
@@ -337,7 +319,8 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
   const node = dsl.nodes.find((n) => n.id === nodeId);
   if (!node) return <div style={emptyStyle}>Rule node not found</div>;
 
-  const allSchemaFields = useMemo(() => Object.entries(node.schema), [node.schema]);
+  const inputSchemaFields = useMemo(() => Object.entries(dsl.schema).filter(([, f]) => f.direction === "input"), [dsl.schema]);
+  const outputSchemaFields = useMemo(() => Object.entries(dsl.schema).filter(([, f]) => f.direction === "output"), [dsl.schema]);
 
   const updateNode = useCallback(
     (updater: (n: RuleNode) => RuleNode) => {
@@ -458,7 +441,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                 >
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <span style={groupLabelStyle}>Inputs</span>
-                    <InputColumnPicker allFields={allSchemaFields} selectedFields={inputColumns} onAdd={addInputColumn} />
+                    <InputColumnPicker allFields={inputSchemaFields} selectedFields={inputColumns} onAdd={addInputColumn} />
                   </div>
                 </th>
 
@@ -469,7 +452,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                 >
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <span style={{ ...groupLabelStyle, color: "var(--orange-deep)" }}>Outputs</span>
-                    <OutputColumnPicker existingKeys={outputColumns} onAdd={addOutputColumn} />
+                    <OutputColumnPicker allFields={outputSchemaFields} selectedFields={outputColumns} onAdd={addOutputColumn} />
                   </div>
                 </th>
 
@@ -494,7 +477,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                           <div style={colHeaderLabelStyle}>{fieldLabel(field)}</div>
                           <div style={colHeaderFieldStyle}>
                             {field}
-                            <span style={colHeaderTypeBadge}>{node.schema[field]?.type ?? "?"}</span>
+                            <span style={colHeaderTypeBadge}>{dsl.schema[field]?.type ?? "?"}</span>
                           </div>
                         </div>
                         <button type="button" onClick={() => removeInputColumn(field)} style={colRemoveBtnStyle} title={`Remove ${field}`}>
@@ -558,7 +541,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                       >
                         <ConditionCell
                           condition={row.conditions[field]}
-                          fieldDef={node.schema[field]}
+                          fieldDef={dsl.schema[field]}
                           onSave={(c) => updateRowCondition(row.id, field, c)}
                         />
                       </td>
@@ -899,20 +882,6 @@ const pickerItemStyle: CSSProperties = {
   fontWeight: 500,
   color: "var(--ink-muted)",
   transition: "background 0.12s, color 0.12s",
-};
-
-const inlineInputStyle: CSSProperties = {
-  fontFamily: "var(--font-dm-mono)",
-  fontSize: 12,
-  padding: "4px 8px",
-  borderWidth: 1,
-  borderStyle: "solid",
-  borderColor: "var(--border-med)",
-  borderRadius: 6,
-  outline: "none",
-  color: "var(--ink)",
-  background: "var(--white)",
-  width: 140,
 };
 
 const emptyStyle: CSSProperties = {

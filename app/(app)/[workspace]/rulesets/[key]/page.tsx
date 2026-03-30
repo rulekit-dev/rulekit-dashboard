@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
 import { useParams } from "next/navigation";
-import type { DSL, ApiDSL } from "@/lib/types";
+import type { DSL, ApiDSL, SchemaField } from "@/lib/types";
 import { apiToDsl } from "@/lib/types";
 import * as api from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
@@ -11,12 +11,14 @@ import PageHeader from "@/components/layout/PageHeader";
 import VersionsPanel from "@/components/editors/VersionsPanel";
 import RuleTableEditor from "@/components/editors/RuleTableEditor";
 import Canvas from "@/components/editors/Canvas";
+import FieldsEditor from "@/components/editors/FieldsEditor";
 import SimulatorPanel from "@/components/editors/SimulatorPanel";
 import Button from "@/components/ui/Button";
 import Skeleton from "@/components/ui/Skeleton";
 
 const emptyDsl: DSL = {
   dsl_version: "v1",
+  schema: {},
   entry: "",
   nodes: [],
   edges: [],
@@ -25,11 +27,12 @@ const emptyDsl: DSL = {
 interface EditorTab {
   id: string;
   label: string;
-  type: "versions" | "canvas" | "table";
+  type: "versions" | "fields" | "canvas" | "table";
   nodeId?: string;
 }
 
 const VERSIONS_TAB: EditorTab = { id: "__versions__", label: "Versions", type: "versions" };
+const FIELDS_TAB: EditorTab = { id: "__fields__", label: "Schema", type: "fields" };
 const CANVAS_TAB: EditorTab = { id: "__canvas__", label: "Canvas", type: "canvas" };
 
 export default function RulesetEditorPage() {
@@ -47,7 +50,7 @@ export default function RulesetEditorPage() {
   const [publishSuccess, setPublishSuccess] = useState(false);
   const publishTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const [tabs, setTabs] = useState<EditorTab[]>([VERSIONS_TAB, CANVAS_TAB]);
+  const [tabs, setTabs] = useState<EditorTab[]>([VERSIONS_TAB, FIELDS_TAB, CANVAS_TAB]);
   const [activeTabId, setActiveTabId] = useState(CANVAS_TAB.id);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
 
@@ -97,13 +100,20 @@ export default function RulesetEditorPage() {
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
-      if (tabId === VERSIONS_TAB.id || tabId === CANVAS_TAB.id) return;
+      if (tabId === VERSIONS_TAB.id || tabId === FIELDS_TAB.id || tabId === CANVAS_TAB.id) return;
       setTabs((prev) => prev.filter((t) => t.id !== tabId));
       if (activeTabId === tabId) {
         setActiveTabId(CANVAS_TAB.id);
       }
     },
     [activeTabId]
+  );
+
+  const handleSchemaChange = useCallback(
+    (schema: Record<string, SchemaField>) => {
+      setDsl((prev) => ({ ...prev, schema }));
+    },
+    []
   );
 
   const handleSave = async () => {
@@ -214,6 +224,7 @@ export default function RulesetEditorPage() {
                 }}
               >
                 {tab.type === "versions" && <VersionsIcon />}
+                {tab.type === "fields" && <FieldsIcon />}
                 {tab.type === "canvas" && <CanvasIcon />}
                 {tab.type === "table" && <TableIcon />}
                 <span>{tab.label}</span>
@@ -238,6 +249,15 @@ export default function RulesetEditorPage() {
         {activeTab.type === "versions" && (
           <div style={scrollWrapperStyle}>
             <VersionsPanel workspace={workspace} rulesetKey={key} />
+          </div>
+        )}
+        {activeTab.type === "fields" && (
+          <div style={scrollWrapperStyle}>
+            <FieldsEditor
+              schema={dsl.schema}
+              onChange={handleSchemaChange}
+              readOnly={!canEdit}
+            />
           </div>
         )}
         {activeTab.type === "canvas" && (
@@ -339,6 +359,14 @@ function VersionsIcon() {
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
       <path d="M7 1V7L10 9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
       <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+function FieldsIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M2 4H12M2 7H9M2 10H11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }

@@ -1,22 +1,43 @@
 "use client";
 
-import React, { CSSProperties } from "react";
+import React, { CSSProperties, useState, useRef, useEffect } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { RuleNode as RuleNodeType } from "@/lib/types";
 
 interface RuleNodeData {
   node: RuleNodeType;
   onEditTable?: (id: string) => void;
+  onRename?: (id: string, name: string) => void;
   [key: string]: unknown;
 }
 
 export default function RuleNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as RuleNodeData;
-  const { node, onEditTable } = nodeData;
+  const { node, onEditTable, onRename } = nodeData;
   const rowCount = node.rows?.length ?? 0;
   const inputCols = node.inputColumns ?? [];
   const outputCols = node.outputColumns ?? [];
-  const schemaCount = Object.keys(node.schema).length;
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(node.name);
+  const [titleHovered, setTitleHovered] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  const commitRename = () => {
+    const trimmed = editValue.trim();
+    if (trimmed && trimmed !== node.name) {
+      onRename?.(node.id, trimmed);
+    } else {
+      setEditValue(node.name);
+    }
+    setEditing(false);
+  };
 
   const cardStyle: CSSProperties = {
     background: "white",
@@ -36,12 +57,43 @@ export default function RuleNode({ data, selected }: NodeProps) {
       <Handle type="target" position={Position.Left} style={leftHandleStyle} />
       <div style={headerStyle}>
         <div style={iconStyle}>R</div>
-        <div style={titleStyle}>{node.name || "Untitled"}</div>
-        <div style={tagStyle}>{node.strategy === "all_matches" ? "ALL" : "FIRST"}</div>
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") { setEditValue(node.name); setEditing(false); }
+            }}
+            style={titleInputStyle}
+          />
+        ) : (
+          <div
+            style={{
+              ...titleStyle,
+              background: titleHovered ? "var(--surface)" : "transparent",
+              borderRadius: 4,
+              padding: "1px 4px",
+              margin: "-1px -4px",
+            }}
+            onMouseEnter={() => setTitleHovered(true)}
+            onMouseLeave={() => setTitleHovered(false)}
+            onClick={(e) => { e.stopPropagation(); setEditValue(node.name); setEditing(true); }}
+          >
+            {node.name || "Untitled"}
+            {titleHovered && (
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ marginLeft: 4, flexShrink: 0, opacity: 0.5 }}>
+                <path d="M7.5 1.5L8.5 2.5L3.5 7.5H2.5V6.5L7.5 1.5Z" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </div>
+        )}
       </div>
       <div style={bodyStyle}>
         <div style={summaryRowStyle}>
-          <span style={{ color: "var(--ink-muted)" }}>{schemaCount} field{schemaCount !== 1 ? "s" : ""} · {rowCount} row{rowCount !== 1 ? "s" : ""}</span>
+          <span style={{ color: "var(--ink-muted)" }}>{rowCount} row{rowCount !== 1 ? "s" : ""}</span>
         </div>
         {inputCols.length > 0 && (
           <div style={summaryRowStyle}>
@@ -109,14 +161,24 @@ const titleStyle: CSSProperties = {
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  transition: "background 0.12s",
 };
 
-const tagStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
-  fontSize: 9,
-  textTransform: "uppercase",
-  color: "var(--ink-subtle)",
-  letterSpacing: "0.05em",
+const titleInputStyle: CSSProperties = {
+  fontWeight: 700,
+  fontSize: 11,
+  color: "var(--ink)",
+  flex: 1,
+  border: "1px solid var(--border-med)",
+  borderRadius: 4,
+  padding: "1px 4px",
+  outline: "none",
+  background: "var(--surface)",
+  fontFamily: "inherit",
+  minWidth: 0,
 };
 
 const bodyStyle: CSSProperties = {

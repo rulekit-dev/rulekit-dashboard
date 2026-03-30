@@ -29,8 +29,11 @@ export interface Version {
   created_at: string;
 }
 
+export type FieldDirection = "input" | "output";
+
 export interface SchemaField {
   type: "string" | "number" | "boolean" | "enum";
+  direction: FieldDirection;
   options?: string[];
 }
 
@@ -48,7 +51,6 @@ export interface RuleNode {
   id: string;
   name: string;
   strategy: Strategy;
-  schema: Record<string, SchemaField>;
   inputColumns: string[];
   outputColumns: string[];
   rows: DecisionRow[];
@@ -62,6 +64,7 @@ export interface DSLEdge {
 
 export interface DSL {
   dsl_version: "v1";
+  schema: Record<string, SchemaField>;
   entry: string;
   nodes: RuleNode[];
   edges: DSLEdge[];
@@ -84,13 +87,14 @@ export interface ApiRule {
 
 export interface ApiNode {
   id: string;
+  name?: string;
   strategy: Strategy;
-  schema: Record<string, SchemaField>;
   rules: ApiRule[];
 }
 
 export interface ApiDSL {
   dsl_version: "v1";
+  schema: Record<string, SchemaField>;
   entry: string;
   nodes: ApiNode[];
   edges: DSLEdge[];
@@ -155,11 +159,12 @@ function apiRulesToNodeRows(apiRules: ApiRule[]): { inputColumns: string[]; outp
 export function dslToApi(dsl: DSL): ApiDSL {
   return {
     dsl_version: dsl.dsl_version,
+    schema: dsl.schema,
     entry: dsl.entry,
     nodes: dsl.nodes.map((node) => ({
       id: node.id,
+      name: node.name,
       strategy: node.strategy,
-      schema: node.schema,
       rules: nodeRowsToApiRules(node),
     })),
     edges: dsl.edges,
@@ -170,14 +175,14 @@ export function dslToApi(dsl: DSL): ApiDSL {
 export function apiToDsl(apiDsl: ApiDSL): DSL {
   return {
     dsl_version: apiDsl.dsl_version,
+    schema: apiDsl.schema || {},
     entry: apiDsl.entry,
-    nodes: apiDsl.nodes.map((apiNode) => {
+    nodes: apiDsl.nodes.map((apiNode, i) => {
       const { inputColumns, outputColumns, rows } = apiRulesToNodeRows(apiNode.rules);
       return {
         id: apiNode.id,
-        name: apiNode.id,
+        name: apiNode.name || `Rule ${i + 1}`,
         strategy: apiNode.strategy,
-        schema: apiNode.schema,
         inputColumns,
         outputColumns,
         rows,

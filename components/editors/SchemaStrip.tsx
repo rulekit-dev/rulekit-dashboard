@@ -126,7 +126,7 @@ export default function SchemaStrip({ schema, onChange, readOnly = false }: Sche
       return;
     }
     setNameError(false);
-    onChange({ ...schema, [trimmed]: { type: newType as SchemaField["type"] } });
+    onChange({ ...schema, [trimmed]: { type: newType as SchemaField["type"], direction: "input" } });
     setNewName("");
     setNewType("string");
     setAdding(false);

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, CSSProperties } from "react";
-import type { SchemaField } from "@/lib/types";
+import type { SchemaField, FieldDirection } from "@/lib/types";
 
 interface FieldsEditorProps {
   schema: Record<string, SchemaField>;
@@ -147,13 +147,84 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
-export default function FieldsEditor({ schema, onChange, readOnly = false }: FieldsEditorProps) {
+function FieldTable({
+  fields,
+  readOnly,
+  onRemove,
+  directionColor,
+}: {
+  fields: [string, SchemaField][];
+  readOnly: boolean;
+  onRemove: (name: string) => void;
+  directionColor: string;
+}) {
+  if (fields.length === 0) return null;
+
+  return (
+    <div style={tableContainerStyle}>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={thStyle}>Name</th>
+            <th style={thStyle}>Type</th>
+            <th style={thStyle}>Options</th>
+            {!readOnly && <th style={{ ...thStyle, width: 48 }} />}
+          </tr>
+        </thead>
+        <tbody>
+          {fields.map(([name, def]) => {
+            const colors = TYPE_COLORS[def.type] || TYPE_COLORS.string;
+            return (
+              <tr key={name} style={rowStyle}>
+                <td style={tdStyle}>
+                  <span style={{ ...fieldNameStyle, color: directionColor }}>{name}</span>
+                </td>
+                <td style={tdStyle}>
+                  <span style={{ ...typeBadgeStyle, background: colors.bg, color: colors.text }}>
+                    {def.type}
+                  </span>
+                </td>
+                <td style={tdStyle}>
+                  <span style={optionsStyle}>
+                    {def.type === "enum" && def.options ? def.options.join(", ") : "—"}
+                  </span>
+                </td>
+                {!readOnly && (
+                  <td style={{ ...tdStyle, textAlign: "right" }}>
+                    <button
+                      onClick={() => onRemove(name)}
+                      style={removeBtnStyle}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#DC2626"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--ink-subtle)"; }}
+                    >
+                      &times;
+                    </button>
+                  </td>
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AddFieldForm({
+  direction,
+  schema,
+  onChange,
+  accentColor,
+}: {
+  direction: FieldDirection;
+  schema: Record<string, SchemaField>;
+  onChange: (schema: Record<string, SchemaField>) => void;
+  accentColor: string;
+}) {
   const [newName, setNewName] = useState("");
   const [newType, setNewType] = useState<SchemaField["type"]>("string");
   const [newOptions, setNewOptions] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
-
-  const fields = Object.entries(schema);
 
   const handleAdd = () => {
     const trimmed = newName.trim();
@@ -165,7 +236,7 @@ export default function FieldsEditor({ schema, onChange, readOnly = false }: Fie
       setNameError("Field already exists");
       return;
     }
-    const field: SchemaField = { type: newType };
+    const field: SchemaField = { type: newType, direction };
     if (newType === "enum" && newOptions.trim()) {
       field.options = newOptions.split(",").map((o) => o.trim()).filter(Boolean);
     }
@@ -176,12 +247,6 @@ export default function FieldsEditor({ schema, onChange, readOnly = false }: Fie
     setNameError(null);
   };
 
-  const handleRemove = (name: string) => {
-    const next = { ...schema };
-    delete next[name];
-    onChange(next);
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -190,112 +255,131 @@ export default function FieldsEditor({ schema, onChange, readOnly = false }: Fie
   };
 
   return (
+    <div style={addFormStyle}>
+      <div style={addFormRowStyle}>
+        <div style={{ flex: 2 }}>
+          <label style={formLabelStyle}>Field name</label>
+          <input
+            value={newName}
+            onChange={(e) => { setNewName(e.target.value); setNameError(null); }}
+            onKeyDown={handleKeyDown}
+            placeholder="field_name"
+            style={{
+              ...inputStyle,
+              borderColor: nameError ? "#DC2626" : "var(--border-med)",
+            }}
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={formLabelStyle}>Type</label>
+          <TypeDropdown value={newType} onChange={setNewType} />
+        </div>
+        {newType === "enum" && (
+          <div style={{ flex: 2 }}>
+            <label style={formLabelStyle}>Options (comma-separated)</label>
+            <input
+              value={newOptions}
+              onChange={(e) => setNewOptions(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="option1, option2"
+              style={inputStyle}
+            />
+          </div>
+        )}
+        <div style={{ alignSelf: "flex-end" }}>
+          <button onClick={handleAdd} style={{ ...addBtnStyle, background: accentColor }}>
+            Add
+          </button>
+        </div>
+      </div>
+      {nameError && <div style={errorStyle}>{nameError}</div>}
+    </div>
+  );
+}
+
+export default function FieldsEditor({ schema, onChange, readOnly = false }: FieldsEditorProps) {
+  const allFields = Object.entries(schema);
+  const inputFields = allFields.filter(([, def]) => def.direction === "input");
+  const outputFields = allFields.filter(([, def]) => def.direction === "output");
+
+  const handleRemove = (name: string) => {
+    const next = { ...schema };
+    delete next[name];
+    onChange(next);
+  };
+
+  return (
     <div style={containerStyle}>
       <div style={headerStyle}>
-        <h2 style={titleStyle}>Schema Fields</h2>
-        <span style={countStyle}>{fields.length} field{fields.length !== 1 ? "s" : ""}</span>
+        <h2 style={titleStyle}>Schema</h2>
+        <span style={countStyle}>{allFields.length} field{allFields.length !== 1 ? "s" : ""}</span>
       </div>
 
       <div style={descriptionStyle}>
-        Define the input fields for your ruleset. These fields will be available as conditions in your rules.
+        Define the schema for your ruleset. Input fields are used as conditions, output fields are the results.
       </div>
 
-      {fields.length > 0 && (
-        <div style={tableContainerStyle}>
-          <table style={tableStyle}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Type</th>
-                <th style={thStyle}>Options</th>
-                {!readOnly && <th style={{ ...thStyle, width: 48 }} />}
-              </tr>
-            </thead>
-            <tbody>
-              {fields.map(([name, def]) => {
-                const colors = TYPE_COLORS[def.type] || TYPE_COLORS.string;
-                return (
-                  <tr key={name} style={rowStyle}>
-                    <td style={tdStyle}>
-                      <span style={fieldNameStyle}>{name}</span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={{ ...typeBadgeStyle, background: colors.bg, color: colors.text }}>
-                        {def.type}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      <span style={optionsStyle}>
-                        {def.type === "enum" && def.options ? def.options.join(", ") : "—"}
-                      </span>
-                    </td>
-                    {!readOnly && (
-                      <td style={{ ...tdStyle, textAlign: "right" }}>
-                        <button
-                          onClick={() => handleRemove(name)}
-                          style={removeBtnStyle}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#DC2626"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--ink-subtle)"; }}
-                        >
-                          &times;
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {/* Inputs section */}
+      <div style={sectionStyle}>
+        <div style={sectionHeaderStyle}>
+          <div style={{ ...sectionDotStyle, background: "#2563EB" }} />
+          <span style={sectionTitleStyle}>Inputs</span>
+          <span style={sectionCountStyle}>{inputFields.length}</span>
         </div>
-      )}
 
-      {fields.length === 0 && (
-        <div style={emptyStyle}>
-          No fields defined yet. Add your first field below.
-        </div>
-      )}
+        <FieldTable
+          fields={inputFields}
+          readOnly={readOnly}
+          onRemove={handleRemove}
+          directionColor="var(--ink)"
+        />
 
-      {!readOnly && (
-        <div style={addFormStyle}>
-          <div style={addFormRowStyle}>
-            <div style={{ flex: 2 }}>
-              <label style={formLabelStyle}>Field name</label>
-              <input
-                value={newName}
-                onChange={(e) => { setNewName(e.target.value); setNameError(null); }}
-                onKeyDown={handleKeyDown}
-                placeholder="field_name"
-                style={{
-                  ...inputStyle,
-                  borderColor: nameError ? "#DC2626" : "var(--border-med)",
-                }}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={formLabelStyle}>Type</label>
-              <TypeDropdown value={newType} onChange={setNewType} />
-            </div>
-            {newType === "enum" && (
-              <div style={{ flex: 2 }}>
-                <label style={formLabelStyle}>Options (comma-separated)</label>
-                <input
-                  value={newOptions}
-                  onChange={(e) => setNewOptions(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="option1, option2"
-                  style={inputStyle}
-                />
-              </div>
-            )}
-            <div style={{ alignSelf: "flex-end" }}>
-              <button onClick={handleAdd} style={addBtnStyle}>
-                Add field
-              </button>
-            </div>
+        {inputFields.length === 0 && (
+          <div style={emptyStyle}>
+            No input fields yet.
           </div>
-          {nameError && <div style={errorStyle}>{nameError}</div>}
+        )}
+
+        {!readOnly && (
+          <AddFieldForm
+            direction="input"
+            schema={schema}
+            onChange={onChange}
+            accentColor="#2563EB"
+          />
+        )}
+      </div>
+
+      {/* Outputs section */}
+      <div style={sectionStyle}>
+        <div style={sectionHeaderStyle}>
+          <div style={{ ...sectionDotStyle, background: "var(--orange)" }} />
+          <span style={sectionTitleStyle}>Outputs</span>
+          <span style={sectionCountStyle}>{outputFields.length}</span>
         </div>
-      )}
+
+        <FieldTable
+          fields={outputFields}
+          readOnly={readOnly}
+          onRemove={handleRemove}
+          directionColor="var(--orange)"
+        />
+
+        {outputFields.length === 0 && (
+          <div style={emptyStyle}>
+            No output fields yet.
+          </div>
+        )}
+
+        {!readOnly && (
+          <AddFieldForm
+            direction="output"
+            schema={schema}
+            onChange={onChange}
+            accentColor="var(--orange)"
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -329,8 +413,44 @@ const descriptionStyle: CSSProperties = {
   fontFamily: "var(--font-nunito)",
   fontSize: 13,
   color: "var(--ink-muted)",
-  marginBottom: 20,
+  marginBottom: 24,
   lineHeight: 1.5,
+};
+
+const sectionStyle: CSSProperties = {
+  marginBottom: 28,
+};
+
+const sectionHeaderStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  marginBottom: 12,
+};
+
+const sectionDotStyle: CSSProperties = {
+  width: 8,
+  height: 8,
+  borderRadius: "50%",
+  flexShrink: 0,
+};
+
+const sectionTitleStyle: CSSProperties = {
+  fontFamily: "var(--font-nunito)",
+  fontWeight: 700,
+  fontSize: 13,
+  color: "var(--ink)",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
+};
+
+const sectionCountStyle: CSSProperties = {
+  fontFamily: "var(--font-nunito)",
+  fontSize: 11,
+  color: "var(--ink-subtle)",
+  background: "var(--surface)",
+  padding: "1px 8px",
+  borderRadius: 10,
 };
 
 const tableContainerStyle: CSSProperties = {
@@ -340,7 +460,7 @@ const tableContainerStyle: CSSProperties = {
   borderColor: "var(--border)",
   borderRadius: 10,
   overflow: "hidden",
-  marginBottom: 16,
+  marginBottom: 12,
 };
 
 const tableStyle: CSSProperties = {
@@ -374,7 +494,6 @@ const fieldNameStyle: CSSProperties = {
   fontFamily: "var(--font-dm-mono)",
   fontSize: 13,
   fontWeight: 500,
-  color: "var(--ink)",
 };
 
 const typeBadgeStyle: CSSProperties = {
@@ -415,14 +534,14 @@ const emptyStyle: CSSProperties = {
   fontFamily: "var(--font-nunito)",
   fontSize: 13,
   color: "var(--ink-subtle)",
-  padding: "32px 0",
+  padding: "24px 0",
   textAlign: "center",
   background: "var(--surface)",
   borderRadius: 10,
   borderWidth: "1px",
   borderStyle: "dashed",
   borderColor: "var(--border-med)",
-  marginBottom: 16,
+  marginBottom: 12,
 };
 
 const addFormStyle: CSSProperties = {
@@ -473,7 +592,6 @@ const addBtnStyle: CSSProperties = {
   borderWidth: "0",
   borderStyle: "solid",
   borderColor: "transparent",
-  background: "var(--orange)",
   color: "var(--white)",
   cursor: "pointer",
   whiteSpace: "nowrap",

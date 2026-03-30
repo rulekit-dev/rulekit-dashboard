@@ -25,10 +25,7 @@ type Tab = (typeof TABS)[number];
 
 function buildDefaultInput(dsl: DSL): Record<string, unknown> {
   const input: Record<string, unknown> = {};
-  // Build input from the entry node's schema
-  const entryNode = dsl.nodes.find((n) => n.id === dsl.entry);
-  if (!entryNode) return input;
-  for (const [field, def] of Object.entries(entryNode.schema)) {
+  for (const [field, def] of Object.entries(dsl.schema)) {
     switch (def.type) {
       case "number":
         input[field] = 0;

@@ -22,10 +22,14 @@ import {
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
 import type { DSL, RuleNode as RuleNodeType, DSLEdge } from "@/lib/types";
+import InputNode from "./NodeTypes/InputNode";
 import RuleNode from "./NodeTypes/RuleNode";
+import OutputNode from "./NodeTypes/OutputNode";
 
 const nodeTypes = {
+  input: InputNode,
   rule: RuleNode,
+  output: OutputNode,
 };
 
 const EDGE_STYLE = { stroke: "var(--border-med)", strokeWidth: 1.5 };
@@ -42,42 +46,110 @@ function layoutNodes(nodes: Node[], edges: Edge[]): Node[] {
   g.setGraph({ rankdir: "LR", nodesep: 40, ranksep: 200 });
 
   for (const node of nodes) {
-    g.setNode(node.id, { width: 200, height: 100 });
+    g.setNode(node.id, { width: 200, height: node.type === "rule" ? 100 : 80 });
   }
   for (const edge of edges) {
     g.setEdge(edge.source, edge.target);
+  }
+
+  // Ensure input→output are placed left-to-right even without rules
+  if (!edges.some((e) => e.source === "__input__" && e.target === "__output__")) {
+    g.setEdge("__input__", "__output__");
   }
 
   dagre.layout(g);
 
   return nodes.map((node) => {
     const pos = g.node(node.id);
+    const w = 200;
+    const h = node.type === "rule" ? 100 : 80;
     return {
       ...node,
-      position: { x: pos.x - 100, y: pos.y - 50 },
+      position: { x: pos.x - w / 2, y: pos.y - h / 2 },
     };
   });
 }
 
 function buildNodes(
   dsl: DSL,
-  onEditTable: (id: string) => void
+  onEditTable: (id: string) => void,
+  onRename: (id: string, name: string) => void,
 ): Node[] {
-  return dsl.nodes.map((node) => ({
-    id: node.id,
-    type: "rule",
+  const nodes: Node[] = [];
+
+  nodes.push({
+    id: "__input__",
+    type: "input",
     position: { x: 0, y: 0 },
-    data: { node, onEditTable },
-  }));
+    data: {},
+  });
+
+  for (const node of dsl.nodes) {
+    nodes.push({
+      id: node.id,
+      type: "rule",
+      position: { x: 0, y: 0 },
+      data: { node, onEditTable, onRename },
+    });
+  }
+
+  // Find leaf nodes (no outgoing edges) to derive output
+  const sourcesSet = new Set(dsl.edges.map((e) => e.from));
+  const leafNodes = dsl.nodes.filter((n) => !sourcesSet.has(n.id));
+  const defaultOutput: Record<string, unknown> = {};
+  for (const leaf of leafNodes) {
+    for (const col of leaf.outputColumns) {
+      defaultOutput[col] = "";
+    }
+  }
+
+  nodes.push({
+    id: "__output__",
+    type: "output",
+    position: { x: 0, y: 0 },
+    data: { defaultOutput },
+  });
+
+  return nodes;
 }
 
 function buildEdgesFromDsl(dsl: DSL): Edge[] {
-  return dsl.edges.map((e) => ({
-    id: `${e.from}-${e.to}`,
-    source: e.from,
-    target: e.to,
-    style: EDGE_STYLE,
-  }));
+  const edges: Edge[] = [];
+
+  // Input → entry node
+  if (dsl.entry) {
+    edges.push({
+      id: `__input__-${dsl.entry}`,
+      source: "__input__",
+      target: dsl.entry,
+      style: EDGE_STYLE,
+    });
+  }
+
+  // DSL edges
+  for (const e of dsl.edges) {
+    edges.push({
+      id: `${e.from}-${e.to}`,
+      source: e.from,
+      target: e.to,
+      style: EDGE_STYLE,
+    });
+  }
+
+  // Leaf nodes → Output
+  const sourcesSet = new Set(dsl.edges.map((de) => de.from));
+  for (const node of dsl.nodes) {
+    if (!sourcesSet.has(node.id)) {
+      edges.push({
+        id: `${node.id}-__output__`,
+        source: node.id,
+        target: "__output__",
+        style: EDGE_STYLE,
+      });
+    }
+  }
+
+  return edges;
 }
 
 function DraggableComponent({ type, icon, label }: { type: string; icon: string; label: string }) {
@@ -133,9 +205,19 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
     [onOpenTable]
   );
 
+  const handleRename = useCallback(
+    (id: string, name: string) => {
+      onChange({
+        ...dsl,
+        nodes: dsl.nodes.map((n) => (n.id === id ? { ...n, name } : n)),
+      });
+    },
+    [dsl, onChange]
+  );
+
   // Initial build: nodes + edges from DSL, laid out together
   const { initialNodes, initialEdges } = useMemo(() => {
-    const nodes = buildNodes(dsl, handleEditTable);
+    const nodes = buildNodes(dsl, handleEditTable, handleRename);
     const edges = buildEdgesFromDsl(dsl);
     const laid = layoutNodes(nodes, edges);
     return { initialNodes: laid, initialEdges: edges };
@@ -163,7 +245,7 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
 
     prevNodeIdsRef.current = currentNodeIds;
 
-    const newNodes = buildNodes(dsl, handleEditTable);
+    const newNodes = buildNodes(dsl, handleEditTable, handleRename);
 
     // Remove edges that reference deleted nodes
     setEdges((prevEdges) =>
@@ -181,68 +263,82 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
         if (existingPos) {
           return { ...n, position: existingPos };
         }
-        const maxX = prevNodes.reduce((max, pn) => Math.max(max, pn.position.x), 0);
+        // Fallback: place between input and output
+        const ruleNodes = prevNodes.filter((pn) => !pn.id.startsWith("__"));
+        const inputNode = prevNodes.find((pn) => pn.id === "__input__");
+        const outputNode = prevNodes.find((pn) => pn.id === "__output__");
         const midY = prevNodes.reduce((sum, pn) => sum + pn.position.y, 0) / (prevNodes.length || 1);
-        return { ...n, position: { x: maxX + 250, y: midY } };
+        if (ruleNodes.length === 0 && inputNode && outputNode) {
+          return { ...n, position: { x: (inputNode.position.x + outputNode.position.x) / 2, y: midY } };
+        }
+        const maxRuleX = ruleNodes.reduce((max, pn) => Math.max(max, pn.position.x), inputNode?.position.x ?? 0);
+        return { ...n, position: { x: maxRuleX + 250, y: midY } };
       });
     });
-  }, [dsl, handleEditTable, setNodes, setEdges]);
+  }, [dsl, handleEditTable, handleRename, setNodes, setEdges]);
 
-  // Sync ReactFlow edges back to DSL
-  const syncEdgesToDsl = useCallback(
-    (rfEdges: Edge[]) => {
-      const nodeIds = new Set(dsl.nodes.map((n) => n.id));
-      const dslEdges: DSLEdge[] = rfEdges
-        .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))
-        .map((e) => {
-          const existing = dsl.edges.find((de) => de.from === e.source && de.to === e.target);
-          return { from: e.source, to: e.target, ...(existing?.map ? { map: existing.map } : {}) };
-        });
-      if (JSON.stringify(dslEdges) !== JSON.stringify(dsl.edges)) {
-        onChange({ ...dsl, edges: dslEdges });
-      }
-    },
-    [dsl, onChange]
-  );
+  // Deferred edge sync: store pending edges, flush via useEffect
+  const pendingEdgeSyncRef = useRef<Edge[] | null>(null);
+
+  useEffect(() => {
+    if (pendingEdgeSyncRef.current === null) return;
+    const rfEdges = pendingEdgeSyncRef.current;
+    pendingEdgeSyncRef.current = null;
+
+    const nodeIds = new Set(dsl.nodes.map((n) => n.id));
+    const dslEdges: DSLEdge[] = rfEdges
+      .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target) && !e.source.startsWith("__") && !e.target.startsWith("__"))
+      .map((e) => {
+        const existing = dsl.edges.find((de) => de.from === e.source && de.to === e.target);
+        return { from: e.source, to: e.target, ...(existing?.map ? { map: existing.map } : {}) };
+      });
+    if (JSON.stringify(dslEdges) !== JSON.stringify(dsl.edges)) {
+      onChange({ ...dsl, edges: dslEdges });
+    }
+  }); // runs after every render to flush pending sync
+
+  const scheduleSyncEdges = useCallback((rfEdges: Edge[]) => {
+    pendingEdgeSyncRef.current = rfEdges;
+  }, []);
 
   // Manual handle-to-handle connect
   const onConnect: OnConnect = useCallback(
     (connection: Connection) => {
       setEdges((eds) => {
         const next = addEdge({ ...connection, style: EDGE_STYLE }, eds);
-        syncEdgesToDsl(next);
+        scheduleSyncEdges(next);
         return next;
       });
     },
-    [setEdges, syncEdgesToDsl]
+    [setEdges, scheduleSyncEdges]
   );
 
   const onReconnect: OnReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
       setEdges((eds) => {
         const next = reconnectEdge(oldEdge, newConnection, eds);
-        syncEdgesToDsl(next);
+        scheduleSyncEdges(next);
         return next;
       });
     },
-    [setEdges, syncEdgesToDsl]
+    [setEdges, scheduleSyncEdges]
   );
 
   const onEdgesDelete = useCallback(
     (deletedEdges: Edge[]) => {
       setEdges((eds) => {
         const next = eds.filter((e) => !deletedEdges.find((de) => de.id === e.id));
-        syncEdgesToDsl(next);
+        scheduleSyncEdges(next);
         return next;
       });
     },
-    [setEdges, syncEdgesToDsl]
+    [setEdges, scheduleSyncEdges]
   );
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (event.key === "Backspace" || event.key === "Delete") {
-        const selectedNodes = nodes.filter((n) => n.selected && n.type === "rule");
+        const selectedNodes = nodes.filter((n) => n.selected && n.type === "rule" && !n.id.startsWith("__"));
         if (selectedNodes.length === 0) return;
         const idsToDelete = new Set(selectedNodes.map((n) => n.id));
         const newNodes = dsl.nodes.filter((n) => !idsToDelete.has(n.id));
@@ -258,18 +354,34 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
     id: crypto.randomUUID(),
     name: `Rule ${dsl.nodes.length + 1}`,
     strategy: "first_match",
-    schema: {},
     inputColumns: [],
     outputColumns: [],
     rows: [],
   }), [dsl.nodes.length]);
 
-  // Drop from sidebar: add node, no edges
-  const addRuleOnly = useCallback(() => {
+  // Immediately insert a ReactFlow node at a given position
+  const insertRfNode = useCallback(
+    (ruleNode: RuleNodeType, position: { x: number; y: number }) => {
+      setNodes((prev) => [
+        ...prev,
+        {
+          id: ruleNode.id,
+          type: "rule" as const,
+          position,
+          data: { node: ruleNode, onEditTable: handleEditTable, onRename: handleRename },
+        },
+      ]);
+    },
+    [setNodes, handleEditTable, handleRename]
+  );
+
+  // Drop from sidebar: add node at drop position, no edges
+  const addRuleAt = useCallback((position: { x: number; y: number }) => {
     const newNode = makeNewNode();
+    insertRfNode(newNode, position);
     const entry = dsl.nodes.length === 0 ? newNode.id : dsl.entry;
     onChange({ ...dsl, nodes: [...dsl.nodes, newNode], entry });
-  }, [dsl, onChange, makeNewNode]);
+  }, [dsl, onChange, makeNewNode, insertRfNode]);
 
   // Add node + connect to a specific handle
   const addRuleAndConnect = useCallback(
@@ -279,6 +391,13 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
         ? { from: sourceNodeId, to: newNode.id }
         : { from: newNode.id, to: sourceNodeId };
 
+      // Position relative to the source node
+      const sourceRfNode = nodes.find((n) => n.id === sourceNodeId);
+      const position = sourceRfNode
+        ? { x: sourceRfNode.position.x + (sourceHandleType === "source" ? 250 : -250), y: sourceRfNode.position.y }
+        : { x: 0, y: 0 };
+      insertRfNode(newNode, position);
+
       setEdges((eds) => [
         ...eds,
         { id: `${newEdge.from}-${newEdge.to}`, source: newEdge.from, target: newEdge.to, style: EDGE_STYLE },
@@ -287,7 +406,7 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
       const entry = dsl.nodes.length === 0 ? newNode.id : dsl.entry;
       onChange({ ...dsl, nodes: [...dsl.nodes, newNode], edges: [...dsl.edges, newEdge], entry });
     },
-    [dsl, onChange, setEdges, makeNewNode]
+    [dsl, onChange, setEdges, makeNewNode, nodes, insertRfNode]
   );
 
   // Track connection drag start
@@ -372,9 +491,15 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
       event.preventDefault();
       const type = event.dataTransfer.getData("application/rulekit-node");
       if (!type) return;
-      if (type === "rule") addRuleOnly();
+      if (type === "rule") {
+        const position = reactFlowInstance.screenToFlowPosition({
+          x: event.clientX,
+          y: event.clientY,
+        });
+        addRuleAt(position);
+      }
     },
-    [addRuleOnly]
+    [addRuleAt, reactFlowInstance]
   );
 
   const handleFitView = useCallback(() => {
