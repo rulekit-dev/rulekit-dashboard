@@ -41,19 +41,23 @@ function getOpsForType(type: string): { value: Op; label: string }[] {
 
 function InputColumnPicker({
   allFields,
+  predecessorFields,
   selectedFields,
   onAdd,
 }: {
   allFields: [string, SchemaField][];
+  predecessorFields: [string, SchemaField][];
   selectedFields: string[];
   onAdd: (field: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
-  const available = allFields.filter(([f]) => !selectedFields.includes(f));
+  const availableSchema = allFields.filter(([f]) => !selectedFields.includes(f));
+  const availablePredecessor = predecessorFields.filter(([f]) => !selectedFields.includes(f));
+  const hasAny = availableSchema.length > 0 || availablePredecessor.length > 0;
 
-  if (available.length === 0) return null;
+  if (!hasAny) return null;
 
   const handleOpen = () => {
     if (btnRef.current) {
@@ -72,19 +76,40 @@ function InputColumnPicker({
         <>
           <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => setOpen(false)} />
           <div style={{ ...fixedDropdownStyle, top: pos.top, left: pos.left }}>
-            <div style={pickerTitleStyle}>Add input column</div>
-            {available.map(([field, { type }]) => (
-              <button
-                key={field}
-                onClick={() => { onAdd(field); setOpen(false); }}
-                style={pickerItemStyle}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-              >
-                <span style={{ fontFamily: "var(--font-dm-mono)", fontSize: 12 }}>{field}</span>
-                <span style={{ fontFamily: "var(--font-nunito)", fontSize: 10, color: "var(--ink-subtle)", marginLeft: "auto" }}>{type}</span>
-              </button>
-            ))}
+            {availableSchema.length > 0 && (
+              <>
+                <div style={pickerTitleStyle}>Schema inputs</div>
+                {availableSchema.map(([field, { type }]) => (
+                  <button
+                    key={field}
+                    onClick={() => { onAdd(field); setOpen(false); }}
+                    style={pickerItemStyle}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                  >
+                    <span style={{ fontFamily: "var(--font-dm-mono)", fontSize: 12 }}>{field}</span>
+                    <span style={{ fontFamily: "var(--font-nunito)", fontSize: 10, color: "var(--ink-subtle)", marginLeft: "auto" }}>{type}</span>
+                  </button>
+                ))}
+              </>
+            )}
+            {availablePredecessor.length > 0 && (
+              <>
+                <div style={pickerTitleStyle}>From previous nodes</div>
+                {availablePredecessor.map(([field, { type }]) => (
+                  <button
+                    key={field}
+                    onClick={() => { onAdd(field); setOpen(false); }}
+                    style={pickerItemStyle}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface)"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+                  >
+                    <span style={{ fontFamily: "var(--font-dm-mono)", fontSize: 12 }}>{field}</span>
+                    <span style={{ fontFamily: "var(--font-nunito)", fontSize: 10, color: "var(--orange)", marginLeft: "auto" }}>{type}</span>
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         </>
       )}
@@ -288,9 +313,11 @@ function ConditionCell({
 
 function OutputCell({
   value,
+  fieldDef,
   onSave,
 }: {
   value: unknown;
+  fieldDef: SchemaField | undefined;
   onSave: (v: string) => void;
 }) {
   const [draft, setDraft] = useState(String(value ?? ""));
@@ -301,6 +328,35 @@ function OutputCell({
 
   const commit = () => { onSave(draft); };
 
+  if (fieldDef?.type === "enum" && fieldDef.options) {
+    return (
+      <select
+        value={draft}
+        onChange={(e) => { setDraft(e.target.value); onSave(e.target.value); }}
+        style={cellValueSelectStyle}
+      >
+        <option value="">-</option>
+        {fieldDef.options.map((opt) => (
+          <option key={opt} value={opt}>{opt}</option>
+        ))}
+      </select>
+    );
+  }
+
+  if (fieldDef?.type === "boolean") {
+    return (
+      <select
+        value={draft}
+        onChange={(e) => { setDraft(e.target.value); onSave(e.target.value); }}
+        style={cellValueSelectStyle}
+      >
+        <option value="">-</option>
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>
+    );
+  }
+
   return (
     <input
       value={draft}
@@ -308,6 +364,7 @@ function OutputCell({
       onBlur={commit}
       onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
       placeholder="-"
+      type={fieldDef?.type === "number" ? "number" : "text"}
       style={cellValueInputStyle}
     />
   );
@@ -321,6 +378,36 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
 
   const inputSchemaFields = useMemo(() => Object.entries(dsl.schema).filter(([, f]) => f.direction === "input"), [dsl.schema]);
   const outputSchemaFields = useMemo(() => Object.entries(dsl.schema).filter(([, f]) => f.direction === "output"), [dsl.schema]);
+
+  // Collect outputs from all predecessor nodes (nodes with edges pointing to this node)
+  const predecessorOutputFields = useMemo((): [string, SchemaField][] => {
+    const predecessorIds = new Set(
+      dsl.edges.filter((e) => e.to === nodeId).map((e) => e.from)
+    );
+    const seen = new Set<string>();
+    const fields: [string, SchemaField][] = [];
+    for (const predId of predecessorIds) {
+      const predNode = dsl.nodes.find((n) => n.id === predId);
+      if (!predNode) continue;
+      for (const col of predNode.outputColumns) {
+        if (!seen.has(col)) {
+          seen.add(col);
+          const schemaDef = dsl.schema[col];
+          fields.push([col, schemaDef ?? { type: "string", direction: "output" }]);
+        }
+      }
+    }
+    return fields;
+  }, [dsl.edges, dsl.nodes, dsl.schema, nodeId]);
+
+  // Merged field lookup: schema fields + predecessor output fields (for ConditionCell type resolution)
+  const allInputFieldDefs = useMemo((): Record<string, SchemaField> => {
+    const merged: Record<string, SchemaField> = { ...dsl.schema };
+    for (const [field, def] of predecessorOutputFields) {
+      if (!merged[field]) merged[field] = def;
+    }
+    return merged;
+  }, [dsl.schema, predecessorOutputFields]);
 
   const updateNode = useCallback(
     (updater: (n: RuleNode) => RuleNode) => {
@@ -441,7 +528,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                 >
                   <div style={{ display: "flex", alignItems: "center" }}>
                     <span style={groupLabelStyle}>Inputs</span>
-                    <InputColumnPicker allFields={inputSchemaFields} selectedFields={inputColumns} onAdd={addInputColumn} />
+                    <InputColumnPicker allFields={inputSchemaFields} predecessorFields={predecessorOutputFields} selectedFields={inputColumns} onAdd={addInputColumn} />
                   </div>
                 </th>
 
@@ -477,7 +564,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                           <div style={colHeaderLabelStyle}>{fieldLabel(field)}</div>
                           <div style={colHeaderFieldStyle}>
                             {field}
-                            <span style={colHeaderTypeBadge}>{dsl.schema[field]?.type ?? "?"}</span>
+                            <span style={colHeaderTypeBadge}>{allInputFieldDefs[field]?.type ?? "?"}</span>
                           </div>
                         </div>
                         <button type="button" onClick={() => removeInputColumn(field)} style={colRemoveBtnStyle} title={`Remove ${field}`}>
@@ -541,7 +628,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                       >
                         <ConditionCell
                           condition={row.conditions[field]}
-                          fieldDef={dsl.schema[field]}
+                          fieldDef={allInputFieldDefs[field]}
                           onSave={(c) => updateRowCondition(row.id, field, c)}
                         />
                       </td>
@@ -555,6 +642,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                       <td key={`out_${key}`} style={{ ...outputTdStyle, borderRight: "1px solid var(--border)" }}>
                         <OutputCell
                           value={row.outputs[key]}
+                          fieldDef={dsl.schema[key]}
                           onSave={(v) => updateRowOutput(row.id, key, v)}
                         />
                       </td>
