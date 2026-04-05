@@ -172,6 +172,78 @@ function OutputColumnPicker({
 
 // --- Editable cells ---
 
+function ValueDropdown({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+
+  const handleOpen = () => {
+    if (btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 2, left: rect.left });
+    }
+    setOpen(true);
+  };
+
+  const allOptions = ["", ...options];
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleOpen}
+        style={{
+          ...opDropdownBtnStyle,
+          color: value ? "var(--ink)" : "var(--ink-subtle)",
+          fontWeight: value ? 500 : 400,
+          minWidth: 80,
+        }}
+      >
+        <span style={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {value || "-"}
+        </span>
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="none" style={{ opacity: 0.4, flexShrink: 0 }}>
+          <path d="M2 3L4 5L6 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 50 }} onClick={() => setOpen(false)} />
+          <div style={{ ...fixedDropdownStyle, top: pos.top, left: pos.left, minWidth: 120 }}>
+            {allOptions.map((opt) => (
+              <button
+                key={opt === "" ? "__empty__" : opt}
+                onClick={() => { onChange(opt); setOpen(false); }}
+                onMouseEnter={() => setHoveredItem(opt)}
+                onMouseLeave={() => setHoveredItem(null)}
+                style={{
+                  ...opDropdownItemStyle,
+                  background: opt === value ? "var(--orange-dim)" : hoveredItem === opt ? "var(--surface)" : "transparent",
+                  color: opt === value ? "var(--orange-deep)" : opt === "" ? "var(--ink-subtle)" : "var(--ink-muted)",
+                  fontWeight: opt === value ? 600 : 500,
+                  fontStyle: opt === "" ? "italic" : "normal",
+                }}
+              >
+                {opt || "-"}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 function OpDropdown({
   value,
   options,
@@ -274,28 +346,17 @@ function ConditionCell({
     <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
       <OpDropdown value={op} options={opOptions} onChange={handleOpChange} />
       {fieldType === "boolean" ? (
-        <select
+        <ValueDropdown
           value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onBlur={commit}
-          style={cellValueSelectStyle}
-        >
-          <option value="">-</option>
-          <option value="true">true</option>
-          <option value="false">false</option>
-        </select>
+          options={["true", "false"]}
+          onChange={(v) => { setVal(v); const parsed = v === "true" ? true : v === "false" ? false : undefined; if (parsed !== undefined) onSave({ field: "", op, value: parsed }); else onSave(null); }}
+        />
       ) : fieldType === "enum" && fieldDef?.options ? (
-        <select
+        <ValueDropdown
           value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onBlur={commit}
-          style={cellValueSelectStyle}
-        >
-          <option value="">-</option>
-          {fieldDef.options.map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
+          options={fieldDef.options}
+          onChange={(v) => { setVal(v); if (v) onSave({ field: "", op, value: v }); else onSave(null); }}
+        />
       ) : (
         <input
           value={val}
@@ -330,30 +391,21 @@ function OutputCell({
 
   if (fieldDef?.type === "enum" && fieldDef.options) {
     return (
-      <select
+      <ValueDropdown
         value={draft}
-        onChange={(e) => { setDraft(e.target.value); onSave(e.target.value); }}
-        style={cellValueSelectStyle}
-      >
-        <option value="">-</option>
-        {fieldDef.options.map((opt) => (
-          <option key={opt} value={opt}>{opt}</option>
-        ))}
-      </select>
+        options={fieldDef.options}
+        onChange={(v) => { setDraft(v); onSave(v); }}
+      />
     );
   }
 
   if (fieldDef?.type === "boolean") {
     return (
-      <select
+      <ValueDropdown
         value={draft}
-        onChange={(e) => { setDraft(e.target.value); onSave(e.target.value); }}
-        style={cellValueSelectStyle}
-      >
-        <option value="">-</option>
-        <option value="true">true</option>
-        <option value="false">false</option>
-      </select>
+        options={["true", "false"]}
+        onChange={(v) => { setDraft(v); onSave(v); }}
+      />
     );
   }
 
@@ -855,19 +907,6 @@ const opDropdownItemStyle: CSSProperties = {
   transition: "background 0.12s, color 0.12s",
 };
 
-const cellValueSelectStyle: CSSProperties = {
-  fontFamily: "var(--font-dm-mono)",
-  fontSize: 11,
-  padding: "4px 6px",
-  border: "1px solid var(--border)",
-  borderRadius: 4,
-  outline: "none",
-  background: "var(--white)",
-  color: "var(--ink)",
-  cursor: "pointer",
-  flex: 1,
-  minWidth: 0,
-};
 
 const cellValueInputStyle: CSSProperties = {
   fontFamily: "var(--font-dm-mono)",
