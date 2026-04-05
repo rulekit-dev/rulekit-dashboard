@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useEffect, useState, useCallback } from "react";
+import { ReactNode, useEffect, useState, useCallback, CSSProperties } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { listWorkspaces } from "@/lib/api";
@@ -114,6 +114,9 @@ export default function AppShell({ children }: AppShellProps) {
 
   // Show onboarding if no workspaces exist
   if (workspaces.length === 0) {
+    if (!isAdmin) {
+      return <NoAccessScreen userEmail={user.email} onLogout={logout} />;
+    }
     return <Onboarding onComplete={handleOnboardingComplete} />;
   }
 
@@ -142,6 +145,81 @@ export default function AppShell({ children }: AppShellProps) {
       >
         {children}
       </main>
+    </div>
+  );
+}
+
+function NoAccessScreen({ userEmail, onLogout }: { userEmail: string; onLogout: () => void }) {
+  const pageStyle: CSSProperties = {
+    minHeight: "100vh",
+    background: "var(--surface)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "column",
+  };
+
+  const cardStyle: CSSProperties = {
+    background: "var(--white)",
+    width: "440px",
+    padding: "36px",
+    borderRadius: "14px",
+    boxShadow: "0 4px 24px rgba(28,28,26,0.08)",
+    textAlign: "center",
+  };
+
+  return (
+    <div style={pageStyle}>
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 800, fontSize: "24px", color: "var(--ink)", marginBottom: "4px" }}>
+          rulekit<span style={{ color: "var(--orange-light)" }}>.</span>
+        </div>
+
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: "50%",
+            background: "var(--surface-2)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "24px auto 0",
+          }}
+        >
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+            <circle cx="11" cy="8" r="3.5" stroke="var(--ink-subtle)" strokeWidth="1.5" />
+            <path d="M4 19c0-3.866 3.134-7 7-7h2c3.866 0 7 3.134 7 7" stroke="var(--ink-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </div>
+
+        <div style={{ fontWeight: 700, fontSize: "18px", color: "var(--ink)", marginTop: "16px", marginBottom: "6px" }}>
+          No access yet
+        </div>
+        <div style={{ fontSize: "14px", color: "var(--ink-muted)", lineHeight: 1.6, marginBottom: "8px" }}>
+          You&apos;re signed in as <strong>{userEmail}</strong>, but you haven&apos;t been assigned to any workspace yet.
+        </div>
+        <div style={{ fontSize: "13px", color: "var(--ink-subtle)", lineHeight: 1.5, marginBottom: "28px" }}>
+          Ask an admin to assign you a role in the Users settings.
+        </div>
+
+        <button
+          onClick={onLogout}
+          style={{
+            fontFamily: "inherit",
+            fontWeight: 600,
+            fontSize: "13px",
+            padding: "8px 20px",
+            borderRadius: "8px",
+            border: "1px solid var(--border-med)",
+            background: "transparent",
+            color: "var(--ink-muted)",
+            cursor: "pointer",
+          }}
+        >
+          Sign out
+        </button>
+      </div>
     </div>
   );
 }
