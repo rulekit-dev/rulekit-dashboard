@@ -3,17 +3,34 @@
 import React, { CSSProperties } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 
-export default function InputNode({ selected }: NodeProps) {
+interface InputNodeData {
+  simulationPhase?: "active" | "done";
+  [key: string]: unknown;
+}
+
+export default function InputNode({ data, selected }: NodeProps) {
+  const nodeData = data as unknown as InputNodeData;
+  const { simulationPhase } = nodeData;
+
   const cardStyle: CSSProperties = {
     background: "white",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: selected ? "var(--blue)" : "var(--border-med)",
+    borderColor: simulationPhase === "active"
+      ? "var(--blue)"
+      : simulationPhase === "done"
+      ? "var(--blue)"
+      : selected ? "var(--blue)" : "var(--border-med)",
     borderRadius: 10,
-    boxShadow: selected
+    boxShadow: simulationPhase === "active"
+      ? "0 0 0 3px var(--blue-dim), 0 0 16px rgba(59,130,246,0.35)"
+      : simulationPhase === "done"
+      ? "0 0 0 2px var(--blue-dim)"
+      : selected
       ? "0 0 0 3px var(--blue-dim)"
       : "0 1px 5px rgba(28,28,26,0.07)",
     minWidth: 120,
+    transition: "box-shadow 0.3s ease, border-color 0.3s ease",
   };
 
   return (

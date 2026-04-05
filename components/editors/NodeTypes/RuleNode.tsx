@@ -8,12 +8,13 @@ interface RuleNodeData {
   node: RuleNodeType;
   onEditTable?: (id: string) => void;
   onRename?: (id: string, name: string) => void;
+  simulationPhase?: "active" | "matched" | "unmatched" | "done-matched" | "done-unmatched";
   [key: string]: unknown;
 }
 
 export default function RuleNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as RuleNodeData;
-  const { node, onEditTable, onRename } = nodeData;
+  const { node, onEditTable, onRename, simulationPhase } = nodeData;
   const rowCount = node.rows?.length ?? 0;
   const inputCols = node.inputColumns ?? [];
   const outputCols = node.outputColumns ?? [];
@@ -39,18 +40,48 @@ export default function RuleNode({ data, selected }: NodeProps) {
     setEditing(false);
   };
 
+  const simBorderColor = simulationPhase === "active"
+    ? "var(--orange)"
+    : simulationPhase === "matched" || simulationPhase === "done-matched"
+    ? "var(--green)"
+    : simulationPhase === "unmatched" || simulationPhase === "done-unmatched"
+    ? "var(--border-med)"
+    : selected ? "var(--orange)" : "var(--border-med)";
+
+  const simBoxShadow = simulationPhase === "active"
+    ? "0 0 0 3px var(--orange-dim), 0 0 16px rgba(240,90,40,0.3)"
+    : simulationPhase === "matched"
+    ? "0 0 0 3px var(--green-dim), 0 0 12px rgba(34,197,94,0.25)"
+    : simulationPhase === "done-matched"
+    ? "0 0 0 2px var(--green-dim)"
+    : simulationPhase === "done-unmatched" || simulationPhase === "unmatched"
+    ? "0 1px 5px rgba(28,28,26,0.07)"
+    : selected
+    ? "0 0 0 3px var(--orange-dim)"
+    : "0 1px 5px rgba(28,28,26,0.07)";
+
   const cardStyle: CSSProperties = {
-    background: "white",
+    background: simulationPhase === "unmatched" || simulationPhase === "done-unmatched"
+      ? "var(--surface)"
+      : "white",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: selected ? "var(--orange)" : "var(--border-med)",
+    borderColor: simBorderColor,
     borderRadius: 10,
-    boxShadow: selected
-      ? "0 0 0 3px var(--orange-dim)"
-      : "0 1px 5px rgba(28,28,26,0.07)",
+    boxShadow: simBoxShadow,
     minWidth: 180,
     cursor: "pointer",
+    opacity: simulationPhase === "unmatched" || simulationPhase === "done-unmatched" ? 0.55 : 1,
+    transition: "box-shadow 0.3s ease, border-color 0.3s ease, opacity 0.3s ease",
   };
+
+  const simBadge = simulationPhase === "active" ? (
+    <span style={{ ...simBadgeBase, background: "var(--orange-dim)", color: "var(--orange)" }}>●</span>
+  ) : simulationPhase === "matched" || simulationPhase === "done-matched" ? (
+    <span style={{ ...simBadgeBase, background: "var(--green-dim)", color: "var(--green-deep)" }}>✓</span>
+  ) : simulationPhase === "unmatched" || simulationPhase === "done-unmatched" ? (
+    <span style={{ ...simBadgeBase, background: "var(--surface)", color: "var(--ink-subtle)" }}>—</span>
+  ) : null;
 
   return (
     <div style={cardStyle}>
@@ -90,6 +121,7 @@ export default function RuleNode({ data, selected }: NodeProps) {
             )}
           </div>
         )}
+        {simBadge}
       </div>
       <div style={bodyStyle}>
         <div style={summaryRowStyle}>
@@ -234,4 +266,14 @@ const editRuleBtnStyle: CSSProperties = {
   padding: "5px 8px",
   letterSpacing: "0.02em",
   transition: "background 0.15s",
+};
+
+const simBadgeBase: CSSProperties = {
+  fontFamily: "var(--font-nunito)",
+  fontSize: 10,
+  fontWeight: 700,
+  borderRadius: 4,
+  padding: "1px 5px",
+  flexShrink: 0,
+  marginLeft: "auto",
 };

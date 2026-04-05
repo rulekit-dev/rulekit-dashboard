@@ -4,23 +4,36 @@ import React, { CSSProperties } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 interface OutputNodeData {
   defaultOutput?: Record<string, unknown>;
+  simulationPhase?: "active" | "done";
+  simulationOutput?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
 export default function OutputNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as OutputNodeData;
-  const defaultEntries = Object.entries(nodeData.defaultOutput || {});
+  const { simulationPhase, simulationOutput } = nodeData;
+  const displayOutput = simulationOutput ?? nodeData.defaultOutput ?? {};
+  const defaultEntries = Object.entries(displayOutput);
 
   const cardStyle: CSSProperties = {
     background: "white",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: selected ? "var(--green)" : "var(--border-med)",
+    borderColor: simulationPhase === "active"
+      ? "var(--green)"
+      : simulationPhase === "done"
+      ? "var(--green)"
+      : selected ? "var(--green)" : "var(--border-med)",
     borderRadius: 10,
-    boxShadow: selected
+    boxShadow: simulationPhase === "active"
+      ? "0 0 0 3px var(--green-dim), 0 0 16px rgba(34,197,94,0.3)"
+      : simulationPhase === "done"
+      ? "0 0 0 2px var(--green-dim)"
+      : selected
       ? "0 0 0 3px var(--green-dim)"
       : "0 1px 5px rgba(28,28,26,0.07)",
     minWidth: 180,
+    transition: "box-shadow 0.3s ease, border-color 0.3s ease",
   };
 
   return (
@@ -45,7 +58,7 @@ export default function OutputNode({ data, selected }: NodeProps) {
         )}
       </div>
       <div style={footerStyle}>
-        <span style={footerTextStyle}>Default</span>
+        <span style={footerTextStyle}>{simulationPhase ? "Result" : "Default"}</span>
       </div>
     </div>
   );

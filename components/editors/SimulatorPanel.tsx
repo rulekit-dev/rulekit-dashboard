@@ -12,12 +12,18 @@ interface TraceEntry {
   duration_us: number;
 }
 
+interface SimulationResult {
+  trace: TraceEntry[];
+  output: Record<string, unknown>;
+}
+
 interface SimulatorPanelProps {
   workspace: string;
   rulesetKey: string;
   dsl: DSL;
   collapsed: boolean;
   onToggle: () => void;
+  onSimulated?: (result: SimulationResult | null) => void;
 }
 
 const TABS = ["Output", "Input", "Trace"] as const;
@@ -49,6 +55,7 @@ export default function SimulatorPanel({
   dsl,
   collapsed,
   onToggle,
+  onSimulated,
 }: SimulatorPanelProps) {
   const [requestText, setRequestText] = useState(() =>
     JSON.stringify(buildDefaultInput(dsl), null, 2)
@@ -70,8 +77,10 @@ export default function SimulatorPanel({
       const elapsed = Math.round((performance.now() - start) * 1000);
       setTotalDuration(elapsed);
       setOutput(res.result);
-      setTrace(res.trace || []);
+      const traceData = res.trace || [];
+      setTrace(traceData);
       setActiveTab("Output");
+      onSimulated?.({ trace: traceData, output: res.result });
     } catch (err: unknown) {
       const e = err as { message?: string };
       setError(e.message || "Evaluation failed");
@@ -88,7 +97,8 @@ export default function SimulatorPanel({
     setTrace([]);
     setError(null);
     setTotalDuration(null);
-  }, [dsl]);
+    onSimulated?.(null);
+  }, [dsl, onSimulated]);
 
   if (collapsed) {
     return (
@@ -211,6 +221,8 @@ const collapsedBarStyle: CSSProperties = {
   background: "var(--white)",
   padding: "6px 16px",
   flexShrink: 0,
+  zIndex: 10,
+  position: "relative",
 };
 
 const panelStyle: CSSProperties = {

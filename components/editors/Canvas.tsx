@@ -34,10 +34,16 @@ const nodeTypes = {
 
 const EDGE_STYLE = { stroke: "var(--border-med)", strokeWidth: 1.5 };
 
+export interface SimulationNodeState {
+  phase: "active" | "matched" | "unmatched" | "done-matched" | "done-unmatched" | "done";
+}
+
 interface CanvasProps {
   dsl: DSL;
   onChange: (dsl: DSL) => void;
   onOpenTable?: (ruleId: string) => void;
+  simulationStates?: Record<string, SimulationNodeState>;
+  simulationOutput?: Record<string, unknown> | null;
 }
 
 function layoutNodes(nodes: Node[], edges: Edge[]): Node[] {
@@ -74,22 +80,26 @@ function buildNodes(
   dsl: DSL,
   onEditTable: (id: string) => void,
   onRename: (id: string, name: string) => void,
+  simulationStates?: Record<string, SimulationNodeState>,
+  simulationOutput?: Record<string, unknown> | null,
 ): Node[] {
   const nodes: Node[] = [];
 
+  const inputPhase = simulationStates?.["__input__"]?.phase;
   nodes.push({
     id: "__input__",
     type: "input",
     position: { x: 0, y: 0 },
-    data: {},
+    data: { simulationPhase: inputPhase },
   });
 
   for (const node of dsl.nodes) {
+    const simPhase = simulationStates?.[node.id]?.phase;
     nodes.push({
       id: node.id,
       type: "rule",
       position: { x: 0, y: 0 },
-      data: { node, onEditTable, onRename },
+      data: { node, onEditTable, onRename, simulationPhase: simPhase },
     });
   }
 
@@ -103,11 +113,16 @@ function buildNodes(
     }
   }
 
+  const outputPhase = simulationStates?.["__output__"]?.phase;
   nodes.push({
     id: "__output__",
     type: "output",
     position: { x: 0, y: 0 },
-    data: { defaultOutput },
+    data: {
+      defaultOutput,
+      simulationPhase: outputPhase,
+      simulationOutput: outputPhase ? simulationOutput : undefined,
+    },
   });
 
   return nodes;
@@ -193,7 +208,7 @@ interface HandleMenuState {
   sourceHandleType: "source" | "target";
 }
 
-function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
+function CanvasInner({ dsl, onChange, onOpenTable, simulationStates, simulationOutput }: CanvasProps) {
   const reactFlowInstance = useReactFlow();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [handleMenu, setHandleMenu] = useState<HandleMenuState | null>(null);
@@ -217,7 +232,7 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
 
   // Initial build: nodes + edges from DSL, laid out together
   const { initialNodes, initialEdges } = useMemo(() => {
-    const nodes = buildNodes(dsl, handleEditTable, handleRename);
+    const nodes = buildNodes(dsl, handleEditTable, handleRename, undefined, undefined);
     const edges = buildEdgesFromDsl(dsl);
     const laid = layoutNodes(nodes, edges);
     return { initialNodes: laid, initialEdges: edges };
@@ -245,7 +260,7 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
 
     prevNodeIdsRef.current = currentNodeIds;
 
-    const newNodes = buildNodes(dsl, handleEditTable, handleRename);
+    const newNodes = buildNodes(dsl, handleEditTable, handleRename, simulationStates, simulationOutput);
 
     // Remove edges that reference deleted nodes
     setEdges((prevEdges) =>
@@ -276,6 +291,56 @@ function CanvasInner({ dsl, onChange, onOpenTable }: CanvasProps) {
       });
     });
   }, [dsl, handleEditTable, handleRename, setNodes, setEdges]);
+
+  // Update node data when simulation states change (preserve positions)
+  useEffect(() => {
+    setNodes((prevNodes) =>
+      prevNodes.map((n) => {
+        if (n.id === "__input__") {
+          const phase = simulationStates?.["__input__"]?.phase;
+          return { ...n, data: { ...n.data, simulationPhase: phase } };
+        }
+        if (n.id === "__output__") {
+          const phase = simulationStates?.["__output__"]?.phase;
+          return {
+            ...n,
+            data: {
+              ...n.data,
+              simulationPhase: phase,
+              simulationOutput: phase ? simulationOutput : undefined,
+            },
+          };
+        }
+        const phase = simulationStates?.[n.id]?.phase;
+        return { ...n, data: { ...n.data, simulationPhase: phase } };
+      })
+    );
+  }, [simulationStates, simulationOutput, setNodes]);
+
+  // Animate highlighted edges during simulation
+  useEffect(() => {
+    if (!simulationStates || Object.keys(simulationStates).length === 0) {
+      setEdges((prev) => prev.map((e) => ({ ...e, style: EDGE_STYLE, animated: false })));
+      return;
+    }
+    setEdges((prev) =>
+      prev.map((e) => {
+        const sourceState = simulationStates[e.source];
+        const isActive =
+          sourceState?.phase === "active" ||
+          sourceState?.phase === "matched" ||
+          sourceState?.phase === "done-matched" ||
+          sourceState?.phase === "done";
+        return {
+          ...e,
+          animated: isActive,
+          style: isActive
+            ? { stroke: "var(--orange)", strokeWidth: 2 }
+            : { stroke: "var(--border-med)", strokeWidth: 1.5, opacity: 0.4 },
+        };
+      })
+    );
+  }, [simulationStates, setEdges]);
 
   // Deferred edge sync: store pending edges, flush via useEffect
   const pendingEdgeSyncRef = useRef<Edge[] | null>(null);

@@ -10,11 +10,12 @@ import { useAuth } from "@/lib/contexts/AuthContext";
 import PageHeader from "@/components/layout/PageHeader";
 import VersionsPanel from "@/components/editors/VersionsPanel";
 import RuleTableEditor from "@/components/editors/RuleTableEditor";
-import Canvas from "@/components/editors/Canvas";
+import Canvas, { type SimulationNodeState } from "@/components/editors/Canvas";
 import FieldsEditor from "@/components/editors/FieldsEditor";
 import SimulatorPanel from "@/components/editors/SimulatorPanel";
 import Button from "@/components/ui/Button";
 import Skeleton from "@/components/ui/Skeleton";
+import DslEditor from "@/components/editors/DslEditor";
 
 const emptyDsl: DSL = {
   dsl_version: "v1",
@@ -27,13 +28,14 @@ const emptyDsl: DSL = {
 interface EditorTab {
   id: string;
   label: string;
-  type: "versions" | "fields" | "canvas" | "table";
+  type: "versions" | "fields" | "canvas" | "table" | "dsl";
   nodeId?: string;
 }
 
 const VERSIONS_TAB: EditorTab = { id: "__versions__", label: "Versions", type: "versions" };
 const FIELDS_TAB: EditorTab = { id: "__fields__", label: "Schema", type: "fields" };
 const CANVAS_TAB: EditorTab = { id: "__canvas__", label: "Canvas", type: "canvas" };
+const DSL_TAB: EditorTab = { id: "__dsl__", label: "DSL", type: "dsl" };
 
 export default function RulesetEditorPage() {
   const params = useParams();
@@ -50,9 +52,12 @@ export default function RulesetEditorPage() {
   const [publishSuccess, setPublishSuccess] = useState(false);
   const publishTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const [tabs, setTabs] = useState<EditorTab[]>([VERSIONS_TAB, FIELDS_TAB, CANVAS_TAB]);
+  const [tabs, setTabs] = useState<EditorTab[]>([VERSIONS_TAB, FIELDS_TAB, CANVAS_TAB, DSL_TAB]);
   const [activeTabId, setActiveTabId] = useState(CANVAS_TAB.id);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [simulationStates, setSimulationStates] = useState<Record<string, SimulationNodeState> | undefined>(undefined);
+  const [simulationOutput, setSimulationOutput] = useState<Record<string, unknown> | null>(null);
+  const animationTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const canEdit = hasRole(workspace, 3);
   const dirty = JSON.stringify(dsl) !== JSON.stringify(savedDsl);
@@ -100,7 +105,7 @@ export default function RulesetEditorPage() {
 
   const handleCloseTab = useCallback(
     (tabId: string) => {
-      if (tabId === VERSIONS_TAB.id || tabId === FIELDS_TAB.id || tabId === CANVAS_TAB.id) return;
+      if (tabId === VERSIONS_TAB.id || tabId === FIELDS_TAB.id || tabId === CANVAS_TAB.id || tabId === DSL_TAB.id) return;
       setTabs((prev) => prev.filter((t) => t.id !== tabId));
       if (activeTabId === tabId) {
         setActiveTabId(CANVAS_TAB.id);
@@ -157,6 +162,101 @@ export default function RulesetEditorPage() {
       setPublishing(false);
     }
   };
+
+  const handleSimulated = useCallback(
+    (result: { trace: { rule_id: string; matched: boolean }[]; output: Record<string, unknown> } | null) => {
+      // Clear any in-progress animation timers
+      animationTimersRef.current.forEach(clearTimeout);
+      animationTimersRef.current = [];
+
+      if (!result) {
+        setSimulationStates(undefined);
+        setSimulationOutput(null);
+        return;
+      }
+
+      const { trace, output } = result;
+      const STEP_MS = 500;
+
+      // Step 0: input active
+      setSimulationStates({ "__input__": { phase: "active" } });
+      setSimulationOutput(null);
+
+      // Step 1: input done, first rule active
+      const steps: (() => void)[] = [];
+
+      const allNodeIds = trace.map((t) => t.rule_id);
+
+      for (let i = 0; i < trace.length; i++) {
+        const stepIndex = i;
+        steps.push(() => {
+          const states: Record<string, SimulationNodeState> = {
+            "__input__": { phase: "done" },
+          };
+          for (let j = 0; j < stepIndex; j++) {
+            const t = trace[j];
+            states[t.rule_id] = { phase: t.matched ? "done-matched" : "done-unmatched" };
+          }
+          // Dim nodes not yet evaluated
+          for (let j = stepIndex + 1; j < trace.length; j++) {
+            states[allNodeIds[j]] = { phase: "unmatched" };
+          }
+          states[trace[stepIndex].rule_id] = { phase: "active" };
+          setSimulationStates(states);
+        });
+
+        // After active: show matched/unmatched result
+        steps.push(() => {
+          const states: Record<string, SimulationNodeState> = {
+            "__input__": { phase: "done" },
+          };
+          for (let j = 0; j <= stepIndex; j++) {
+            const t = trace[j];
+            states[t.rule_id] = { phase: t.matched ? (j < stepIndex ? "done-matched" : "matched") : (j < stepIndex ? "done-unmatched" : "unmatched") };
+          }
+          for (let j = stepIndex + 1; j < trace.length; j++) {
+            states[allNodeIds[j]] = { phase: "unmatched" };
+          }
+          setSimulationStates(states);
+        });
+      }
+
+      // Final step: output active
+      steps.push(() => {
+        const states: Record<string, SimulationNodeState> = {
+          "__input__": { phase: "done" },
+          "__output__": { phase: "active" },
+        };
+        for (const t of trace) {
+          states[t.rule_id] = { phase: t.matched ? "done-matched" : "done-unmatched" };
+        }
+        setSimulationStates(states);
+        setSimulationOutput(output);
+      });
+
+      // Final step: all done
+      steps.push(() => {
+        const states: Record<string, SimulationNodeState> = {
+          "__input__": { phase: "done" },
+          "__output__": { phase: "done" },
+        };
+        for (const t of trace) {
+          states[t.rule_id] = { phase: t.matched ? "done-matched" : "done-unmatched" };
+        }
+        setSimulationStates(states);
+      });
+
+      steps.forEach((fn, i) => {
+        const delay = (i + 1) * STEP_MS;
+        const timer = setTimeout(fn, delay);
+        animationTimersRef.current.push(timer);
+      });
+
+      // Switch to canvas tab so the animation is visible
+      setActiveTabId(CANVAS_TAB.id);
+    },
+    []
+  );
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || CANVAS_TAB;
 
@@ -227,6 +327,7 @@ export default function RulesetEditorPage() {
                 {tab.type === "fields" && <FieldsIcon />}
                 {tab.type === "canvas" && <CanvasIcon />}
                 {tab.type === "table" && <TableIcon />}
+                {tab.type === "dsl" && <DslIcon />}
                 <span>{tab.label}</span>
                 {isClosable && (
                   <span
@@ -261,7 +362,13 @@ export default function RulesetEditorPage() {
           </div>
         )}
         {activeTab.type === "canvas" && (
-          <Canvas dsl={dsl} onChange={setDsl} onOpenTable={handleOpenTable} />
+          <Canvas
+            dsl={dsl}
+            onChange={setDsl}
+            onOpenTable={handleOpenTable}
+            simulationStates={simulationStates}
+            simulationOutput={simulationOutput}
+          />
         )}
         {activeTab.type === "table" && activeTab.nodeId && (
           <div style={scrollWrapperStyle}>
@@ -272,16 +379,24 @@ export default function RulesetEditorPage() {
             />
           </div>
         )}
+        {activeTab.type === "dsl" && (
+          <div style={{ ...scrollWrapperStyle, padding: 32 }}>
+            <DslEditor dsl={dsl} onChange={setDsl} readOnly={!canEdit} />
+          </div>
+        )}
       </div>
 
-      {/* Simulator */}
-      <SimulatorPanel
-        workspace={workspace}
-        rulesetKey={key}
-        dsl={dsl}
-        collapsed={!simulatorOpen}
-        onToggle={() => setSimulatorOpen((v) => !v)}
-      />
+      {/* Simulator — hidden until rulekit-sdk is available */}
+      {false && (
+        <SimulatorPanel
+          workspace={workspace}
+          rulesetKey={key}
+          dsl={dsl}
+          collapsed={!simulatorOpen}
+          onToggle={() => setSimulatorOpen((v) => !v)}
+          onSimulated={handleSimulated}
+        />
+      )}
 
       {/* Save bar */}
       {canEdit && (
@@ -389,6 +504,16 @@ function TableIcon() {
       <rect x="1.5" y="2" width="11" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" />
       <path d="M1.5 5.5H12.5" stroke="currentColor" strokeWidth="1.2" />
       <path d="M5 5.5V12" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  );
+}
+
+function DslIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M4 4L1.5 7L4 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10 4L12.5 7L10 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.5 2.5L5.5 11.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   );
 }
