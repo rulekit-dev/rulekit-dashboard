@@ -1,4 +1,4 @@
-.PHONY: install dev build lint test release
+.PHONY: install dev build typecheck test release
 
 install:
 	pnpm install --frozen-lockfile
@@ -9,10 +9,10 @@ dev:
 build:
 	pnpm build
 
-lint:
-	pnpm lint
+typecheck:
+	pnpm typecheck
 
-test: lint build
+test: typecheck build
 
 # Usage: make release VERSION=1.2.0
 release: test
