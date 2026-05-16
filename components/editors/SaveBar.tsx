@@ -68,7 +68,7 @@ export default function SaveBar({
     width: "8px",
     height: "8px",
     borderRadius: "50%",
-    background: "var(--orange)",
+    background: "var(--ink)",
     flexShrink: 0,
   };
 

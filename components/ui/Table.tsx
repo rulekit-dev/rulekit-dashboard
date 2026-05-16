@@ -123,7 +123,7 @@ export function TableRow({ children, onClick, style }: TableRowProps) {
 
 export function TableCell({ children, primary, mono, align, style }: TableCellProps) {
   const cellStyle: CSSProperties = {
-    fontFamily: mono ? "var(--font-nunito)" : "inherit",
+    fontFamily: mono ? "var(--font-sans)" : "inherit",
     fontWeight: primary ? 600 : 400,
     fontSize: mono ? "12px" : "14px",
     color: primary ? "var(--ink)" : "var(--ink-muted)",

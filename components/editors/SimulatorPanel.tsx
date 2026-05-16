@@ -152,9 +152,9 @@ export default function SimulatorPanel({
                 onClick={() => setActiveTab(tab)}
                 style={{
                   ...tabStyle,
-                  color: activeTab === tab ? "var(--orange)" : "var(--ink-muted)",
+                  color: activeTab === tab ? "var(--ink)" : "var(--ink-muted)",
                   borderBottomColor:
-                    activeTab === tab ? "var(--orange)" : "transparent",
+                    activeTab === tab ? "var(--ink)" : "transparent",
                   fontWeight: activeTab === tab ? 600 : 400,
                 }}
               >
@@ -256,14 +256,14 @@ const toggleBtnStyle: CSSProperties = {
 };
 
 const labelStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   fontWeight: 600,
   color: "var(--ink)",
 };
 
 const durationStyle: CSSProperties = {
-  fontFamily: "var(--font-dm-mono)",
+  fontFamily: "var(--font-mono)",
   fontSize: 11,
   color: "var(--ink-subtle)",
 };
@@ -273,7 +273,7 @@ const resetBtnStyle: CSSProperties = {
   border: "1px solid var(--border)",
   borderRadius: 6,
   cursor: "pointer",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   color: "var(--ink-muted)",
   padding: "4px 10px",
@@ -293,7 +293,7 @@ const requestSideStyle: CSSProperties = {
 };
 
 const sectionHeaderStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontWeight: 600,
   textTransform: "uppercase",
@@ -308,7 +308,7 @@ const textareaStyle: CSSProperties = {
   resize: "none",
   border: "none",
   outline: "none",
-  fontFamily: "var(--font-dm-mono)",
+  fontFamily: "var(--font-mono)",
   fontSize: 12,
   lineHeight: 1.6,
   padding: "4px 12px 12px",
@@ -342,7 +342,7 @@ const tabStyle: CSSProperties = {
   border: "none",
   borderBottom: "2px solid transparent",
   cursor: "pointer",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   padding: "8px 12px",
   transition: "color 0.15s",
@@ -354,7 +354,7 @@ const resultAreaStyle: CSSProperties = {
 };
 
 const preStyle: CSSProperties = {
-  fontFamily: "var(--font-dm-mono)",
+  fontFamily: "var(--font-mono)",
   fontSize: 12,
   lineHeight: 1.6,
   color: "var(--ink)",
@@ -365,7 +365,7 @@ const preStyle: CSSProperties = {
 };
 
 const errorStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   color: "#DC2626",
   padding: "8px 12px",
@@ -377,7 +377,7 @@ const traceRowStyle: CSSProperties = {
   gap: 8,
   padding: "6px 12px",
   borderBottom: "1px solid var(--border)",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
 };
 
@@ -395,7 +395,7 @@ const traceNameStyle: CSSProperties = {
 };
 
 const traceDurationStyle: CSSProperties = {
-  fontFamily: "var(--font-dm-mono)",
+  fontFamily: "var(--font-mono)",
   fontSize: 10,
   color: "var(--ink-subtle)",
 };

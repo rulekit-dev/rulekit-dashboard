@@ -41,15 +41,15 @@ export default function RuleNode({ data, selected }: NodeProps) {
   };
 
   const simBorderColor = simulationPhase === "active"
-    ? "var(--orange)"
+    ? "var(--ink)"
     : simulationPhase === "matched" || simulationPhase === "done-matched"
     ? "var(--green)"
     : simulationPhase === "unmatched" || simulationPhase === "done-unmatched"
     ? "var(--border-med)"
-    : selected ? "var(--orange)" : "var(--border-med)";
+    : selected ? "var(--ink)" : "var(--border-med)";
 
   const simBoxShadow = simulationPhase === "active"
-    ? "0 0 0 3px var(--orange-dim), 0 0 16px rgba(240,90,40,0.3)"
+    ? "0 0 0 3px rgba(28,28,26,0.08), 0 0 16px rgba(28,28,26,0.12)"
     : simulationPhase === "matched"
     ? "0 0 0 3px var(--green-dim), 0 0 12px rgba(34,197,94,0.25)"
     : simulationPhase === "done-matched"
@@ -57,7 +57,7 @@ export default function RuleNode({ data, selected }: NodeProps) {
     : simulationPhase === "done-unmatched" || simulationPhase === "unmatched"
     ? "0 1px 5px rgba(28,28,26,0.07)"
     : selected
-    ? "0 0 0 3px var(--orange-dim)"
+    ? "0 0 0 3px rgba(28,28,26,0.06)"
     : "0 1px 5px rgba(28,28,26,0.07)";
 
   const cardStyle: CSSProperties = {
@@ -76,7 +76,7 @@ export default function RuleNode({ data, selected }: NodeProps) {
   };
 
   const simBadge = simulationPhase === "active" ? (
-    <span style={{ ...simBadgeBase, background: "var(--orange-dim)", color: "var(--orange)" }}>●</span>
+    <span style={{ ...simBadgeBase, background: "rgba(28,28,26,0.06)", color: "var(--ink)" }}>●</span>
   ) : simulationPhase === "matched" || simulationPhase === "done-matched" ? (
     <span style={{ ...simBadgeBase, background: "var(--green-dim)", color: "var(--green-deep)" }}>✓</span>
   ) : simulationPhase === "unmatched" || simulationPhase === "done-unmatched" ? (
@@ -150,8 +150,8 @@ export default function RuleNode({ data, selected }: NodeProps) {
             e.stopPropagation();
             onEditTable?.(node.id);
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange-deep)"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--orange)"; }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ink)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ink)"; }}
         >
           Edit Rule
         </button>
@@ -174,13 +174,13 @@ const iconStyle: CSSProperties = {
   width: 20,
   height: 20,
   borderRadius: "50%",
-  background: "var(--orange-dim)",
-  color: "var(--orange)",
+  background: "rgba(28,28,26,0.06)",
+  color: "var(--ink)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   fontSize: 10,
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontWeight: 700,
   flexShrink: 0,
 };
@@ -222,7 +222,7 @@ const summaryRowStyle: CSSProperties = {
   alignItems: "center",
   gap: 4,
   padding: "2px 0",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
 };
 
@@ -236,7 +236,7 @@ const leftHandleStyle: CSSProperties = {
   height: 10,
   borderRadius: "50%",
   background: "white",
-  border: "2px solid var(--orange)",
+  border: "2px solid var(--ink)",
   cursor: "crosshair",
 };
 
@@ -255,11 +255,11 @@ const footerStyle: CSSProperties = {
 
 const editRuleBtnStyle: CSSProperties = {
   width: "100%",
-  background: "var(--orange)",
+  background: "var(--ink)",
   border: "none",
   borderRadius: 6,
   cursor: "pointer",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontWeight: 600,
   color: "white",
@@ -269,7 +269,7 @@ const editRuleBtnStyle: CSSProperties = {
 };
 
 const simBadgeBase: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontWeight: 700,
   borderRadius: 4,

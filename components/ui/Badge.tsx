@@ -2,7 +2,7 @@
 
 import React, { CSSProperties } from "react";
 
-type BadgeVariant = "orange" | "green" | "blue" | "purple" | "gray";
+type BadgeVariant = "ink" | "green" | "blue" | "amber" | "gray" | "red";
 
 interface BadgeProps {
   variant: BadgeVariant;
@@ -12,17 +12,17 @@ interface BadgeProps {
 }
 
 const variantStyles: Record<BadgeVariant, { bg: string; color: string; border: string; dotColor: string }> = {
-  orange: {
-    bg: "var(--orange-dim)",
-    color: "var(--orange-deep)",
-    border: "1.5px solid rgba(192,61,20,0.2)",
-    dotColor: "var(--orange-deep)",
+  ink: {
+    bg: "rgba(28,28,26,0.06)",
+    color: "var(--ink)",
+    border: "1.5px solid rgba(28,28,26,0.12)",
+    dotColor: "var(--ink)",
   },
   green: {
     bg: "var(--green-dim)",
     color: "var(--green-deep)",
-    border: "1.5px solid rgba(21,128,61,0.2)",
-    dotColor: "var(--green-deep)",
+    border: "1.5px solid rgba(26,127,75,0.2)",
+    dotColor: "var(--green)",
   },
   blue: {
     bg: "var(--blue-dim)",
@@ -30,17 +30,23 @@ const variantStyles: Record<BadgeVariant, { bg: string; color: string; border: s
     border: "1.5px solid rgba(37,99,235,0.2)",
     dotColor: "#1D4ED8",
   },
-  purple: {
-    bg: "var(--purple-dim)",
-    color: "#6D28D9",
-    border: "1.5px solid rgba(124,58,237,0.2)",
-    dotColor: "#6D28D9",
+  amber: {
+    bg: "var(--amber-dim)",
+    color: "var(--amber)",
+    border: "1.5px solid rgba(180,83,9,0.2)",
+    dotColor: "var(--amber)",
+  },
+  red: {
+    bg: "var(--red-dim)",
+    color: "var(--red)",
+    border: "1.5px solid rgba(201,42,42,0.2)",
+    dotColor: "var(--red)",
   },
   gray: {
-    bg: "#EDEDEA",
-    color: "#5F5E5A",
-    border: "1.5px solid rgba(95,94,90,0.18)",
-    dotColor: "#5F5E5A",
+    bg: "var(--surface-2)",
+    color: "var(--ink-muted)",
+    border: "1.5px solid var(--border-med)",
+    dotColor: "var(--ink-subtle)",
   },
 };
 
@@ -59,13 +65,14 @@ export default function Badge({ variant, dot = false, pill = true, children }: B
     fontWeight: 600,
     fontSize: "10px",
     textTransform: "uppercase",
-    letterSpacing: "0.04em",
+    letterSpacing: "0.05em",
     lineHeight: 1.4,
+    fontFamily: "var(--font-sans)",
   };
 
   const dotStyle: CSSProperties = {
-    width: "6px",
-    height: "6px",
+    width: "5px",
+    height: "5px",
     borderRadius: "50%",
     background: vs.dotColor,
     flexShrink: 0,
@@ -76,7 +83,7 @@ export default function Badge({ variant, dot = false, pill = true, children }: B
       {dot && (
         <span
           style={dotStyle}
-          className={variant === "orange" ? "badge-dot-pulse" : undefined}
+          className={variant === "ink" ? "badge-dot-pulse" : undefined}
         />
       )}
       {children}

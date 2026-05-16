@@ -18,14 +18,14 @@ interface ButtonProps {
 }
 
 const sizeStyles: Record<ButtonSize, CSSProperties> = {
-  sm: { padding: "5px 10px", fontSize: "11px" },
-  md: { padding: "8px 16px", fontSize: "12px" },
-  lg: { padding: "10px 20px", fontSize: "13px" },
+  sm: { padding: "5px 12px", fontSize: "12px" },
+  md: { padding: "8px 16px", fontSize: "13px" },
+  lg: { padding: "10px 20px", fontSize: "14px" },
 };
 
 const variantStyles: Record<ButtonVariant, CSSProperties> = {
   primary: {
-    background: "var(--orange)",
+    background: "var(--ink)",
     color: "var(--white)",
     borderWidth: "0",
     borderStyle: "solid",
@@ -42,22 +42,21 @@ const variantStyles: Record<ButtonVariant, CSSProperties> = {
     background: "transparent",
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: "rgba(220,38,38,0.25)",
-    color: "#DC2626",
+    borderColor: "rgba(201,42,42,0.25)",
+    color: "var(--red)",
   },
 };
 
 const variantHoverStyles: Record<ButtonVariant, CSSProperties> = {
   primary: {
-    background: "var(--orange-light)",
-    transform: "translateY(-1px)",
+    opacity: 0.82,
   },
   ghost: {
     borderColor: "var(--ink)",
     color: "var(--ink)",
   },
   danger: {
-    background: "rgba(220,38,38,0.05)",
+    background: "var(--red-dim)",
   },
 };
 
@@ -89,15 +88,17 @@ export default function Button({
   const isDisabled = disabled || loading;
 
   const baseStyle: CSSProperties = {
+    fontFamily: "var(--font-sans)",
     fontWeight: 600,
     borderRadius: "8px",
     cursor: isDisabled ? "not-allowed" : "pointer",
     opacity: isDisabled ? 0.4 : 1,
-    transition: "all 0.2s",
+    transition: "all 0.15s",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     lineHeight: 1.4,
+    letterSpacing: "-0.01em",
     ...sizeStyles[size],
     ...variantStyles[variant],
     ...(hovered && !isDisabled ? variantHoverStyles[variant] : {}),

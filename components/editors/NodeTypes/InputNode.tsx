@@ -67,7 +67,7 @@ const iconStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   fontSize: 10,
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontWeight: 700,
   flexShrink: 0,
 };
@@ -87,7 +87,7 @@ const footerStyle: CSSProperties = {
 };
 
 const footerTextStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   color: "var(--ink-muted)",
 };

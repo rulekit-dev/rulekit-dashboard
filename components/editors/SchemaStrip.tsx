@@ -12,7 +12,7 @@ interface SchemaStripProps {
 
 const TYPE_COLORS: Record<string, string> = {
   number: "#2563EB",
-  string: "#7C3AED",
+  string: "#2563EB",
   boolean: "#D97706",
   enum: "#16A34A",
 };
@@ -54,14 +54,14 @@ export default function SchemaStrip({ schema, onChange, readOnly = false }: Sche
   });
 
   const fieldNameStyle: CSSProperties = {
-    fontFamily: "var(--font-nunito)",
+    fontFamily: "var(--font-sans)",
     fontWeight: 500,
     fontSize: "10px",
     color: "var(--ink)",
   };
 
   const typeLabelStyle: CSSProperties = {
-    fontFamily: "var(--font-nunito)",
+    fontFamily: "var(--font-sans)",
     fontWeight: 400,
     fontSize: "10px",
     color: "var(--ink-subtle)",
@@ -86,7 +86,7 @@ export default function SchemaStrip({ schema, onChange, readOnly = false }: Sche
   };
 
   const inlineInputStyle: CSSProperties = {
-    fontFamily: "var(--font-nunito)",
+    fontFamily: "var(--font-sans)",
     fontSize: "10px",
     padding: "4px 8px",
     border: nameError ? "1px solid #DC2626" : "1px solid var(--border-med)",
@@ -98,7 +98,7 @@ export default function SchemaStrip({ schema, onChange, readOnly = false }: Sche
   };
 
   const inlineSelectStyle: CSSProperties = {
-    fontFamily: "var(--font-nunito)",
+    fontFamily: "var(--font-sans)",
     fontSize: "10px",
     padding: "4px 6px",
     border: "1px solid var(--border-med)",
@@ -176,7 +176,7 @@ export default function SchemaStrip({ schema, onChange, readOnly = false }: Sche
           style={{
             background: "none",
             border: "none",
-            fontFamily: "var(--font-nunito)",
+            fontFamily: "var(--font-sans)",
             fontSize: "10px",
             color: "var(--ink-muted)",
             cursor: "pointer",

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import Badge from "@/components/ui/Badge";
 import Skeleton from "@/components/ui/Skeleton";
 import { relativeTime } from "@/lib/utils/relativeTime";
 import type { Version } from "@/lib/types";
@@ -18,46 +17,72 @@ export default function ActivityFeed({ versions, loading }: ActivityFeedProps) {
     .slice(0, 10);
 
   return (
-    <div
-      style={{
-        background: "var(--white)",
-        borderRadius: "12px",
-        border: "1px solid var(--border)",
-        padding: "24px",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div style={{
+      background: "var(--white)",
+      borderRadius: "12px",
+      border: "1px solid var(--border)",
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+    }}>
       {/* Header */}
-      <div style={{ marginBottom: "16px" }}>
-        <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--ink)" }}>
-          Recent activity
+      <div style={{
+        padding: "20px 22px",
+        borderBottom: "1px solid var(--border)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexShrink: 0,
+        minHeight: 64,
+      }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.02em" }}>
+            Recent activity
+          </div>
+          <div style={{ fontSize: 11, color: "var(--ink-subtle)", marginTop: 2 }}>
+            Latest publishes across all rulesets
+          </div>
         </div>
-        <div style={{ fontSize: "13px", fontWeight: 400, color: "var(--ink-muted)" }}>
-          Latest publishes across all rulesets
-        </div>
+        {!loading && sorted.length > 0 && (
+          <div style={{
+            fontSize: 10, fontWeight: 600,
+            color: "var(--ink-subtle)",
+            background: "var(--surface)",
+            border: "1px solid var(--border)",
+            borderRadius: 5, padding: "3px 8px",
+          }}>
+            {sorted.length} events
+          </div>
+        )}
       </div>
 
       {/* Feed */}
-      <div style={{ flex: 1, overflowY: "auto", maxHeight: "260px" }}>
+      <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} width="100%" height="44px" />
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+                <Skeleton width="100%" height="32px" />
+              </div>
             ))}
           </div>
         ) : sorted.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "48px 0",
-              fontSize: "14px",
-              fontWeight: 400,
-              color: "var(--ink-subtle)",
-            }}
-          >
-            No publishes yet.
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            padding: "48px 24px", gap: 8,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: "var(--surface)", border: "1px solid var(--border)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6" stroke="var(--ink-subtle)" strokeWidth="1.5" />
+                <path d="M8 5v3.5l2 2" stroke="var(--ink-subtle)" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </div>
+            <span style={{ fontSize: 12, color: "var(--ink-subtle)" }}>No publishes yet</span>
           </div>
         ) : (
           sorted.map((item, i) => (
@@ -75,92 +100,69 @@ export default function ActivityFeed({ versions, loading }: ActivityFeedProps) {
   );
 }
 
-function FeedItem({
-  version,
-  workspace,
-  isLast,
-  index,
-}: {
-  version: Version;
-  workspace: string;
-  isLast: boolean;
-  index: number;
+function FeedItem({ version, workspace, isLast, index }: {
+  version: Version; workspace: string; isLast: boolean; index: number;
 }) {
   const [hovered, setHovered] = useState(false);
 
   return (
     <Link
       href={`/${workspace}/rulesets/${version.ruleset_key}`}
-      style={{ textDecoration: "none", color: "inherit" }}
+      style={{ textDecoration: "none", color: "inherit", display: "block" }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <div
         className="animate-row"
         style={{
-          padding: "10px 4px",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "13px 22px",
           borderBottom: isLast ? "none" : "1px solid var(--border)",
-          background: hovered ? "rgba(28,28,26,0.02)" : "transparent",
-          borderRadius: "4px",
-          transition: "background 0.15s",
-          animationDelay: `${index * 100}ms`,
+          background: hovered ? "var(--surface)" : "transparent",
+          transition: "background 0.12s",
+          animationDelay: `${index * 60}ms`,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "10px",
-          }}
-        >
-          {/* Green dot */}
-          <div
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "var(--green)",
-              flexShrink: 0,
-            }}
-          />
-          {/* Key */}
-          <span
-            style={{
-              fontFamily: "var(--font-dm-mono)",
-              fontWeight: 500,
-              fontSize: "13px",
-              color: "var(--ink)",
-            }}
-          >
-            {version.ruleset_key}
-          </span>
-          {/* Version badge */}
-          <Badge variant="gray">v{version.version}</Badge>
-          {/* Time */}
-          <span
-            style={{
-              marginLeft: "auto",
-              fontFamily: "var(--font-dm-mono)",
-              fontWeight: 400,
-              fontSize: "11px",
-              color: "var(--ink-subtle)",
-              flexShrink: 0,
-            }}
-          >
-            {relativeTime(version.created_at)}
-          </span>
+        {/* Timeline dot */}
+        <div style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: "var(--green)",
+          boxShadow: "0 0 0 3px rgba(26,127,75,0.12)",
+          flexShrink: 0,
+        }} />
+
+        {/* Content */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{
+              fontFamily: "var(--font-sans)", fontWeight: 500, fontSize: 12,
+              color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {version.ruleset_key}
+            </span>
+            <span style={{
+              fontFamily: "var(--font-sans)", fontSize: 10, fontWeight: 500,
+              color: "var(--green)", background: "rgba(26,127,75,0.1)",
+              border: "1px solid rgba(26,127,75,0.2)", borderRadius: 4,
+              padding: "1px 5px", flexShrink: 0,
+            }}>
+              v{version.version}
+            </span>
+          </div>
+          <div style={{ fontSize: 10, color: "var(--ink-subtle)", marginTop: 1 }}>
+            published · {workspace}
+          </div>
         </div>
-        <div
-          style={{
-            fontSize: "12px",
-            fontWeight: 400,
-            color: "var(--ink-muted)",
-            paddingLeft: "18px",
-            marginTop: "2px",
-          }}
-        >
-          {workspace} workspace
-        </div>
+
+        {/* Time */}
+        <span style={{
+          fontFamily: "var(--font-sans)", fontSize: 10, color: "var(--ink-subtle)",
+          flexShrink: 0,
+        }}>
+          {relativeTime(version.created_at)}
+        </span>
       </div>
     </Link>
   );

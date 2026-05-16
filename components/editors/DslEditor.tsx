@@ -1,303 +1,422 @@
 "use client";
 
-import { useState, useCallback, CSSProperties, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, CSSProperties } from "react";
 import type { DSL, ApiDSL } from "@/lib/types";
 import { dslToApi, apiToDsl } from "@/lib/types";
-import Button from "@/components/ui/Button";
 
-// ─── Colours (dark theme matching CodeBlock) ─────────────────────────────────
-const C = {
-  bg: "var(--ink)",
-  text: "#E5E5E3",
-  key: "#93C5FD",
-  string: "#FCA5A5",
-  number: "#FCD34D",
-  boolean: "#C4B5FD",
-  null: "#C4B5FD",
-  bracket: "#9CA3AF",
-  toggle: "#6B7280",
-  toggleHover: "#D1D5DB",
-  error: "#F87171",
-  success: "#4ADE80",
+// ─── Colour scheme — One Dark Pro inspired, modern & softer ──────────────────
+const T = {
+  bg:           "#282C34",   // editor background
+  bgAlt:        "#21252B",   // slightly darker — action bar, gutter
+  bgHover:      "#2C313C",   // hover state
+  activeLine:   "#2C313A",   // hovered line
+  gutter:       "#21252B",
+  gutterFg:     "#4B5263",   // line numbers
+  gutterBorder: "#181A1F",
+  text:         "#ABB2BF",   // default text
+  key:          "#61AFEF",   // sky blue — object keys
+  string:       "#98C379",   // sage green — strings
+  number:       "#E5C07B",   // warm yellow — numbers
+  boolean:      "#C678DD",   // purple — booleans
+  null:         "#56B6C2",   // teal — null
+  punctuation:  "#ABB2BF",
+  bracket0:     "#E06C75",   // coral — depth 0
+  bracket1:     "#C678DD",   // purple — depth 1
+  bracket2:     "#56B6C2",   // teal — depth 2+
+  tabBar:       "#21252B",
+  tabActiveBg:  "#282C34",
+  tabAccent:    "#61AFEF",   // sky blue tab top border
+  tabFg:        "#ABB2BF",
+  statusBg:     "#21252B",
+  statusFg:     "#4B5263",
+  statusAccent: "#61AFEF",
+  error:        "#E06C75",
+  errorBg:      "rgba(224,108,117,0.1)",
+  border:       "#181A1F",
+  borderInner:  "#2C313C",
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
 type JsonValue = string | number | boolean | null | JsonObject | JsonArray;
 type JsonObject = { [key: string]: JsonValue };
-type JsonArray = JsonValue[];
+type JsonArray  = JsonValue[];
 
-interface JsonNodeProps {
-  value: JsonValue;
-  /** undefined = root, string = object key, number = array index */
-  keyName?: string | number;
-  depth: number;
-  isLast: boolean;
-  onChange: (newVal: JsonValue) => void;
+function bracketColor(depth: number): string {
+  if (depth === 0) return T.bracket0;
+  if (depth === 1) return T.bracket1;
+  return T.bracket2;
 }
 
-// ─── Leaf editor ──────────────────────────────────────────────────────────────
+function escStr(s: string) {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n").replace(/\t/g, "\\t");
+}
 
-function LeafEditor({
-  raw,
-  onCommit,
-  onCancel,
-}: {
-  raw: string;
-  onCommit: (v: JsonValue) => void;
-  onCancel: () => void;
-}) {
-  const [text, setText] = useState(raw);
-  const ref = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
-  }, []);
-
-  const commit = () => {
-    try {
-      onCommit(JSON.parse(text));
-    } catch {
-      // treat as string literal
-      onCommit(text);
-    }
-  };
-
+function renderValue(val: JsonValue, depth: number): React.ReactNode {
+  if (val === null)             return <span style={{ color: T.null }}>null</span>;
+  if (typeof val === "boolean") return <span style={{ color: T.boolean }}>{String(val)}</span>;
+  if (typeof val === "number")  return <span style={{ color: T.number }}>{val}</span>;
+  if (typeof val === "string")  return <span style={{ color: T.string }}>"{escStr(val)}"</span>;
+  if (Array.isArray(val)) {
+    const bc = bracketColor(depth);
+    return (
+      <span>
+        <span style={{ color: bc }}>[</span>
+        <span style={{ color: T.gutterFg, fontSize: 10, margin: "0 4px" }}>{(val as JsonArray).length}</span>
+        <span style={{ color: bc }}>]</span>
+      </span>
+    );
+  }
+  const bc = bracketColor(depth);
+  const n = Object.keys(val as JsonObject).length;
   return (
-    <input
-      ref={ref}
-      value={text}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") commit();
-        if (e.key === "Escape") onCancel();
-      }}
-      style={leafInputStyle}
-    />
+    <span>
+      <span style={{ color: bc }}>{"{"}</span>
+      <span style={{ color: T.gutterFg, fontSize: 10, margin: "0 4px" }}>{n}</span>
+      <span style={{ color: bc }}>{"}"}</span>
+    </span>
   );
 }
 
-// ─── Leaf value display ───────────────────────────────────────────────────────
-
-function LeafDisplay({ value }: { value: JsonValue }) {
-  if (value === null) return <span style={{ color: C.null }}>null</span>;
-  if (typeof value === "boolean") return <span style={{ color: C.boolean }}>{String(value)}</span>;
-  if (typeof value === "number") return <span style={{ color: C.number }}>{value}</span>;
-  if (typeof value === "string") return <span style={{ color: C.string }}>"{value}"</span>;
-  return null;
+// ─── Line builder ─────────────────────────────────────────────────────────────
+interface Line {
+  lineNo: number;
+  indent: number;
+  content: React.ReactNode;
+  isCollapsible: boolean;
+  collapseKey?: string;
+  depth: number;
 }
 
-// ─── JsonNode ─────────────────────────────────────────────────────────────────
+function buildLines(
+  val: JsonValue,
+  collapsed: Set<string>,
+  path = "root",
+  depth = 0,
+  isLast = true,
+  keyName?: string | number,
+): Line[] {
+  const bc = bracketColor(depth);
+  const trailing = isLast ? "" : ",";
 
-function JsonNode({ value, keyName, depth, isLast, onChange }: JsonNodeProps) {
-  const [open, setOpen] = useState(depth < 2);
-  const [editing, setEditing] = useState(false);
-  const [hovered, setHovered] = useState(false);
-
-  const isObject = value !== null && typeof value === "object" && !Array.isArray(value);
-  const isArray = Array.isArray(value);
-  const isLeaf = !isObject && !isArray;
-
-  const indent = depth * 16;
-  const openBracket = isArray ? "[" : "{";
-  const closeBracket = isArray ? "]" : "}";
-  const entries = isObject
-    ? Object.entries(value as JsonObject)
-    : isArray
-    ? (value as JsonArray).map((v, i) => [i, v] as [number, JsonValue])
-    : [];
-  const count = entries.length;
-
-  const handleChildChange = useCallback(
-    (childKey: string | number, newChild: JsonValue) => {
-      if (isObject) {
-        onChange({ ...(value as JsonObject), [childKey as string]: newChild });
-      } else if (isArray) {
-        const copy = [...(value as JsonArray)];
-        copy[childKey as number] = newChild;
-        onChange(copy);
-      }
-    },
-    [value, isObject, isArray, onChange]
-  );
-
-  const rowStyle: CSSProperties = {
-    display: "flex",
-    alignItems: "flex-start",
-    paddingLeft: indent,
-    paddingRight: 8,
-    minHeight: 22,
-    background: hovered && isLeaf ? "rgba(255,255,255,0.04)" : "transparent",
-    borderRadius: 4,
-    cursor: isLeaf ? "text" : "default",
-    userSelect: "none",
-  };
-
-  const keyLabel = keyName !== undefined ? (
-    <span style={{ color: C.key, marginRight: 4 }}>
-      {typeof keyName === "string" ? `"${keyName}"` : keyName}
-      <span style={{ color: C.text }}>: </span>
+  const keySpan = keyName !== undefined && depth > 0 ? (
+    <span>
+      <span style={{ color: T.key }}>
+        {typeof keyName === "string" ? `"${keyName}"` : keyName}
+      </span>
+      <span style={{ color: T.punctuation }}>: </span>
     </span>
   ) : null;
 
-  const trailing = isLast ? "" : ",";
+  const isObj = val !== null && typeof val === "object" && !Array.isArray(val);
+  const isArr = Array.isArray(val);
 
-  // ── Collapsed node ────────────────────────────────────────────────────────
-  if (!isLeaf && !open) {
-    return (
-      <div
-        style={rowStyle}
-        onClick={() => setOpen(true)}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        <ToggleBtn open={false} onClick={() => setOpen(true)} />
-        {keyLabel}
-        <span style={{ color: C.bracket }}>
-          {openBracket}
-          <span style={{ color: C.toggle, fontSize: 11, margin: "0 4px" }}>
-            {count} {count === 1 ? "item" : "items"}
+  if (isObj || isArr) {
+    const open  = isArr ? "[" : "{";
+    const close = isArr ? "]" : "}";
+    const entries = isObj
+      ? Object.entries(val as JsonObject)
+      : (val as JsonArray).map((v, i) => [i, v] as [number, JsonValue]);
+
+    if (collapsed.has(path)) {
+      return [{
+        lineNo: 0, indent: depth, depth, isCollapsible: true, collapseKey: path,
+        content: (
+          <span>
+            {keySpan}
+            <span style={{ color: bc }}>{open}</span>
+            <span style={{ color: T.gutterFg, fontSize: 10, margin: "0 6px", fontStyle: "italic" }}>
+              {entries.length} {entries.length === 1 ? "item" : "items"}
+            </span>
+            <span style={{ color: bc }}>{close}</span>
+            <span style={{ color: T.punctuation }}>{trailing}</span>
           </span>
-          {closeBracket}
-        </span>
-        <span style={{ color: C.bracket }}>{trailing}</span>
-      </div>
-    );
+        ),
+      }];
+    }
+
+    const lines: Line[] = [];
+    lines.push({
+      lineNo: 0, indent: depth, depth, isCollapsible: true, collapseKey: path,
+      content: <span>{keySpan}<span style={{ color: bc }}>{open}</span></span>,
+    });
+    entries.forEach(([k, v], i) => {
+      lines.push(...buildLines(v, collapsed, `${path}.${k}`, depth + 1, i === entries.length - 1, k));
+    });
+    lines.push({
+      lineNo: 0, indent: depth, depth, isCollapsible: false,
+      content: <span><span style={{ color: bc }}>{close}</span><span style={{ color: T.punctuation }}>{trailing}</span></span>,
+    });
+    return lines;
   }
 
-  // ── Expanded node ─────────────────────────────────────────────────────────
-  if (!isLeaf) {
-    return (
-      <div>
-        <div
-          style={{ ...rowStyle, cursor: "default" }}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-        >
-          <ToggleBtn open={true} onClick={() => setOpen(false)} />
-          {keyLabel}
-          <span style={{ color: C.bracket }}>{openBracket}</span>
-        </div>
-        {(entries as [string | number, JsonValue][]).map(([k, v], i) => (
-          <JsonNode
-            key={String(k)}
-            keyName={k}
-            value={v}
-            depth={depth + 1}
-            isLast={i === entries.length - 1}
-            onChange={(newV) => handleChildChange(k, newV)}
-          />
-        ))}
-        <div style={{ paddingLeft: indent, color: C.bracket, minHeight: 22, display: "flex", alignItems: "center" }}>
-          {closeBracket}
-          <span style={{ color: C.bracket }}>{trailing}</span>
-        </div>
-      </div>
-    );
-  }
+  return [{
+    lineNo: 0, indent: depth, depth, isCollapsible: false,
+    content: (
+      <span>
+        {keySpan}
+        {renderValue(val, depth)}
+        <span style={{ color: T.punctuation }}>{trailing}</span>
+      </span>
+    ),
+  }];
+}
 
-  // ── Leaf ──────────────────────────────────────────────────────────────────
-  const rawForEdit =
-    typeof value === "string" ? value : JSON.stringify(value);
+// ─── Tree viewer ──────────────────────────────────────────────────────────────
+function JsonViewer({ value }: { value: JsonValue }) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [hovLine, setHovLine] = useState<number | null>(null);
+
+  const toggle = useCallback((key: string) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }, []);
+
+  const lines = useMemo(() => buildLines(value, collapsed).map((l, i) => ({ ...l, lineNo: i + 1 })), [value, collapsed]);
+
+  const INDENT = 16;
+  const GUTTER = 48;
 
   return (
-    <div
-      style={rowStyle}
-      onClick={() => !editing && setEditing(true)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <span style={{ width: 16, flexShrink: 0 }} />
-      {keyLabel}
-      {editing ? (
-        <LeafEditor
-          raw={rawForEdit}
-          onCommit={(v) => { setEditing(false); onChange(v); }}
-          onCancel={() => setEditing(false)}
-        />
-      ) : (
-        <LeafDisplay value={value} />
-      )}
-      <span style={{ color: C.bracket }}>{trailing}</span>
+    <div style={{ userSelect: "text", minWidth: "max-content" }}>
+      {lines.map((line) => (
+        <div
+          key={line.lineNo}
+          onMouseEnter={() => setHovLine(line.lineNo)}
+          onMouseLeave={() => setHovLine(null)}
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            minHeight: 21,
+            background: hovLine === line.lineNo ? T.activeLine : "transparent",
+            transition: "background 0.05s",
+          }}
+        >
+          {/* Gutter */}
+          <div style={{
+            width: GUTTER, flexShrink: 0,
+            textAlign: "right", paddingRight: 14,
+            color: hovLine === line.lineNo ? T.text : T.gutterFg,
+            fontSize: 11, lineHeight: "21px", userSelect: "none",
+            fontVariantNumeric: "tabular-nums",
+            position: "relative",
+          }}>
+            {line.isCollapsible && (
+              <span
+                onClick={() => line.collapseKey && toggle(line.collapseKey)}
+                style={{
+                  position: "absolute", left: 6, top: "50%",
+                  transform: `translateY(-50%) rotate(${collapsed.has(line.collapseKey ?? "") ? "0deg" : "90deg"})`,
+                  color: hovLine === line.lineNo ? T.gutterFg : "transparent",
+                  fontSize: 7, cursor: "pointer",
+                  transition: "transform 0.12s, color 0.1s",
+                  lineHeight: 1,
+                }}
+              >▶</span>
+            )}
+            {line.lineNo}
+          </div>
+
+          {/* Code */}
+          <div style={{
+            flex: 1, paddingLeft: line.indent * INDENT, paddingRight: 24,
+            fontSize: 12.5, lineHeight: "21px",
+            fontFamily: "'Menlo','Monaco','Consolas','Courier New',monospace",
+            whiteSpace: "pre",
+          }}>
+            {line.content}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-// ─── Toggle button ────────────────────────────────────────────────────────────
+// ─── Raw editor ───────────────────────────────────────────────────────────────
+function RawEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const lineCount = value.split("\n").length;
 
-function ToggleBtn({ open, onClick }: { open: boolean; onClick: () => void }) {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <span
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: 16,
-        height: 16,
-        flexShrink: 0,
-        color: hovered ? C.toggleHover : C.toggle,
-        cursor: "pointer",
-        fontSize: 10,
-        marginRight: 0,
-        transform: open ? "rotate(90deg)" : "rotate(0deg)",
-        transition: "transform 0.15s, color 0.15s",
-        userSelect: "none",
-      }}
-    >
-      ▶
-    </span>
-  );
-}
-
-// ─── Raw text fallback editor ─────────────────────────────────────────────────
-
-function RawEditor({
-  value,
-  onCommit,
-  onCancel,
-}: {
-  value: string;
-  onCommit: (v: JsonValue) => void;
-  onCancel: () => void;
-}) {
-  const [text, setText] = useState(value);
-  const [err, setErr] = useState<string | null>(null);
-
-  const commit = () => {
-    try {
-      onCommit(JSON.parse(text));
-      setErr(null);
-    } catch (e) {
-      setErr((e as Error).message);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const ta = e.currentTarget;
+      const s = ta.selectionStart, end = ta.selectionEnd;
+      const next = value.substring(0, s) + "  " + value.substring(end);
+      onChange(next);
+      requestAnimationFrame(() => { ta.selectionStart = ta.selectionEnd = s + 2; });
     }
   };
 
   return (
-    <div style={{ padding: "0 16px 16px" }}>
-      <textarea
-        value={text}
-        onChange={(e) => { setText(e.target.value); setErr(null); }}
-        style={rawTextareaStyle}
-        rows={24}
-        spellCheck={false}
-      />
-      {err && <div style={{ color: C.error, fontSize: 11, marginTop: 4 }}>{err}</div>}
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <Button variant="ghost" size="md" onClick={onCancel}>Cancel</Button>
-        <Button variant="primary" size="md" onClick={commit}>Apply</Button>
+    <div style={{ display: "flex", height: "100%" }}>
+      {/* Line numbers */}
+      <div style={{
+        width: 48, flexShrink: 0,
+        background: T.gutter,
+        borderRight: `1px solid ${T.gutterBorder}`,
+        paddingTop: 10, paddingRight: 10,
+        textAlign: "right",
+        color: T.gutterFg,
+        fontSize: 11,
+        fontFamily: "'Menlo','Monaco','Consolas','Courier New',monospace",
+        lineHeight: "21px",
+        userSelect: "none",
+        overflowY: "hidden",
+        fontVariantNumeric: "tabular-nums",
+      }}>
+        {Array.from({ length: lineCount }, (_, i) => <div key={i}>{i + 1}</div>)}
       </div>
+      <textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        spellCheck={false}
+        autoComplete="off"
+        style={{
+          flex: 1, background: T.bg, color: T.text,
+          border: "none", outline: "none", resize: "none",
+          fontFamily: "'Menlo','Monaco','Consolas','Courier New',monospace",
+          fontSize: 12.5, lineHeight: "21px",
+          padding: "10px 20px",
+          boxSizing: "border-box",
+          caretColor: T.text,
+        }}
+      />
     </div>
   );
 }
 
-// ─── Main DslEditor ───────────────────────────────────────────────────────────
+// ─── Copy button ──────────────────────────────────────────────────────────────
+function CopyBtn({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const [hov, setHov] = useState(false);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      title="Copy JSON"
+      style={{
+        display: "flex", alignItems: "center", gap: 5,
+        background: hov ? T.bgHover : "transparent",
+        border: `1px solid ${hov ? T.borderInner : "transparent"}`,
+        borderRadius: 5, padding: "3px 9px",
+        fontFamily: "'Menlo','Monaco','Consolas','Courier New',monospace",
+        fontSize: 11,
+        color: copied ? T.string : T.gutterFg,
+        cursor: "pointer", transition: "all 0.13s",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {copied ? (
+        <><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M1.5 5.5L4 8L9.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>Copied</>
+      ) : (
+        <><svg width="11" height="11" viewBox="0 0 11 11" fill="none"><rect x="3.5" y="3.5" width="6" height="6" rx="1.2" stroke="currentColor" strokeWidth="1.2"/><path d="M2 7.5H1.5A1 1 0 0 1 .5 6.5v-5A1 1 0 0 1 1.5.5h5A1 1 0 0 1 7.5 1.5V2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>Copy</>
+      )}
+    </button>
+  );
+}
 
+// ─── Mode toggle button (Edit / Tree) ────────────────────────────────────────
+function ModeBtn({ rawMode, onClick }: { rawMode: boolean; onClick: () => void }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      title={rawMode ? "Switch to tree view" : "Edit raw JSON"}
+      style={{
+        display: "flex", alignItems: "center", gap: 5,
+        background: hov ? T.bgHover : "transparent",
+        border: `1px solid ${hov ? T.borderInner : "transparent"}`,
+        borderRadius: 5, padding: "3px 9px",
+        fontFamily: "'Menlo','Monaco','Consolas','Courier New',monospace",
+        fontSize: 11,
+        color: rawMode ? T.string : T.gutterFg,
+        cursor: "pointer", transition: "all 0.13s",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {rawMode ? (
+        <>
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+            <path d="M1 2.5h3M1 5.5h5M1 8.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            <circle cx="9" cy="2.5" r="1.3" stroke="currentColor" strokeWidth="1.1"/>
+            <circle cx="9" cy="8.5" r="1.3" stroke="currentColor" strokeWidth="1.1"/>
+            <path d="M4 2.5h3.5M5.5 5.5H7V4M7.7 8.5H5.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+          </svg>
+          Tree
+        </>
+      ) : (
+        <>
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+            <path d="M8 2l1.5 1.5-5.5 5.5H2.5V7.5L8 2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+          </svg>
+          Edit
+        </>
+      )}
+    </button>
+  );
+}
+
+// ─── Small action button ──────────────────────────────────────────────────────
+function ActionBtn({ onClick, label, primary, disabled }: {
+  onClick: () => void; label: string; primary?: boolean; disabled?: boolean;
+}) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick} disabled={disabled}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        fontFamily: "var(--font-sans)", fontSize: 11, fontWeight: 600,
+        padding: "4px 12px", borderRadius: 6,
+        border: primary ? "none" : `1px solid ${T.borderInner}`,
+        background: primary
+          ? (disabled ? "#1A3A5C" : hov ? "#4FA8E0" : T.statusAccent)
+          : (hov ? T.bgHover : "transparent"),
+        color: primary ? "#fff" : (hov ? T.text : T.gutterFg),
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1, transition: "all 0.13s",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+// ─── Toggle icon button ───────────────────────────────────────────────────────
+function IconBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
+  const [hov, setHov] = useState(false);
+  return (
+    <button
+      onClick={onClick} title={title}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        width: 26, height: 26, borderRadius: 5,
+        background: hov ? T.bgHover : "transparent",
+        border: `1px solid ${hov ? T.borderInner : "transparent"}`,
+        color: hov ? T.text : T.gutterFg,
+        cursor: "pointer", transition: "all 0.13s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 interface DslEditorProps {
   dsl: DSL;
   onChange: (dsl: DSL) => void;
@@ -306,141 +425,219 @@ interface DslEditorProps {
 
 export default function DslEditor({ dsl, onChange, readOnly }: DslEditorProps) {
   const apiDsl = dslToApi(dsl);
+  const jsonStr = useMemo(() => JSON.stringify(apiDsl, null, 2), [apiDsl]);
+
   const [rawMode, setRawMode] = useState(false);
+  const [rawText, setRawText] = useState(jsonStr);
   const [parseError, setParseError] = useState<string | null>(null);
 
-  const handleTreeChange = useCallback(
-    (newVal: JsonValue) => {
-      try {
-        const updated = apiToDsl(newVal as unknown as ApiDSL);
-        setParseError(null);
-        onChange(updated);
-      } catch (e) {
-        setParseError((e as Error).message);
-      }
-    },
-    [onChange]
-  );
+  const prevJsonStr = useRef(jsonStr);
+  useEffect(() => {
+    if (!rawMode && jsonStr !== prevJsonStr.current) {
+      setRawText(jsonStr);
+      prevJsonStr.current = jsonStr;
+    }
+  }, [jsonStr, rawMode]);
 
-  const handleRawCommit = useCallback(
-    (parsed: JsonValue) => {
-      try {
-        const updated = apiToDsl(parsed as unknown as ApiDSL);
-        setParseError(null);
-        onChange(updated);
-        setRawMode(false);
-      } catch (e) {
-        setParseError((e as Error).message);
-      }
-    },
-    [onChange]
-  );
+  const handleRawChange = (text: string) => {
+    setRawText(text);
+    setParseError(null);
+    try {
+      const parsed = JSON.parse(text);
+      const updated = apiToDsl(parsed as ApiDSL);
+      onChange(updated);
+      prevJsonStr.current = JSON.stringify(dslToApi(updated), null, 2);
+    } catch (e) {
+      setParseError((e as Error).message);
+    }
+  };
+
+  const handleRawCommit = () => {
+    try {
+      const parsed = JSON.parse(rawText);
+      const updated = apiToDsl(parsed as ApiDSL);
+      onChange(updated);
+      setParseError(null);
+      setRawMode(false);
+    } catch (e) {
+      setParseError((e as Error).message);
+    }
+  };
+
+  const switchToRaw = () => { setRawText(jsonStr); setParseError(null); setRawMode(true); };
+  const lineCount = (rawMode ? rawText : jsonStr).split("\n").length;
+  const charCount = (rawMode ? rawText : jsonStr).length;
 
   return (
-    <div style={wrapperStyle}>
-      {/* Toolbar */}
-      <div style={toolbarStyle}>
-        <span style={{ fontSize: 11, color: C.toggle, fontFamily: "var(--font-nunito)" }}>
-          {readOnly ? "Read-only" : "Click a value to edit"}
-        </span>
-        {!readOnly && (
-          <button
-            style={rawToggleStyle}
-            onClick={() => { setRawMode((v) => !v); setParseError(null); }}
-          >
-            {rawMode ? "Tree view" : "Raw JSON"}
-          </button>
+    <div style={shellStyle}>
+
+      {/* ── Tab bar ── */}
+      <div style={tabBarStyle}>
+        {/* Active tab */}
+        <div style={tabStyle}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+            <rect x="1" y="1" width="10" height="10" rx="1.5" stroke={T.key} strokeWidth="1.2" opacity="0.8"/>
+            <path d="M3 4h6M3 6h4M3 8h5" stroke={T.key} strokeWidth="1" strokeLinecap="round" opacity="0.8"/>
+          </svg>
+          <span style={{ letterSpacing: "-0.01em" }}>dsl.json</span>
+          {!readOnly && rawMode && parseError && (
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: T.error, flexShrink: 0 }} />
+          )}
+        </div>
+
+        <div style={{ flex: 1 }} />
+
+        {/* Toolbar buttons */}
+        <div style={{ display: "flex", alignItems: "center", gap: 4, paddingRight: 10 }}>
+          <CopyBtn code={jsonStr} />
+          {!readOnly && (
+            <ModeBtn
+              rawMode={rawMode}
+              onClick={rawMode ? () => { setRawMode(false); setParseError(null); } : switchToRaw}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* ── Body ── */}
+      <div style={bodyStyle}>
+        {rawMode && !readOnly ? (
+          <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: 1, overflow: "auto" }}>
+              <RawEditor value={rawText} onChange={handleRawChange} />
+            </div>
+            {/* Error bar */}
+            {parseError && (
+              <div style={{
+                padding: "5px 16px", background: T.errorBg,
+                borderTop: `1px solid ${T.error}30`,
+                color: T.error, fontSize: 11,
+                fontFamily: "'Menlo','Monaco','Consolas','Courier New',monospace",
+                display: "flex", alignItems: "center", gap: 6, flexShrink: 0,
+              }}>
+                <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                  <circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
+                  <path d="M5.5 3v2.5M5.5 7.5v.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                </svg>
+                {parseError}
+              </div>
+            )}
+            {/* Action bar */}
+            <div style={rawActionBarStyle}>
+              <span style={{ fontSize: 10, color: parseError ? T.error : T.string, fontFamily: "var(--font-sans)", fontWeight: 600 }}>
+                {parseError ? "⚠ Invalid JSON" : "✓ Valid JSON"}
+              </span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <ActionBtn onClick={() => { setRawMode(false); setParseError(null); }} label="Cancel" />
+                <ActionBtn onClick={handleRawCommit} label="Apply" primary disabled={!!parseError} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ overflowY: "auto", overflowX: "auto", height: "100%", paddingTop: 10, paddingBottom: 10 }}>
+            <JsonViewer value={apiDsl as unknown as JsonValue} />
+          </div>
         )}
       </div>
 
-      {/* Parse error banner */}
-      {parseError && (
-        <div style={{ padding: "6px 16px", background: "rgba(248,113,113,0.1)", color: C.error, fontSize: 11, fontFamily: "var(--font-nunito)" }}>
-          {parseError}
-        </div>
-      )}
+      {/* ── Status bar ── */}
+      <div style={statusBarStyle}>
+        <span style={statusDotStyle} />
+        <span>JSON</span>
+        <span style={{ color: T.borderInner }}>·</span>
+        <span>{lineCount} lines</span>
+        <span style={{ color: T.borderInner }}>·</span>
+        <span>{charCount} chars</span>
+        <div style={{ flex: 1 }} />
+        {!readOnly && (
+          <span style={{ color: T.statusAccent, fontWeight: 600 }}>
+            {rawMode ? "Raw" : "Tree"}
+          </span>
+        )}
+        {readOnly && <span style={{ color: T.gutterFg }}>read-only</span>}
+      </div>
 
-      {/* Content */}
-      {rawMode ? (
-        <RawEditor
-          value={JSON.stringify(apiDsl, null, 2)}
-          onCommit={handleRawCommit}
-          onCancel={() => setRawMode(false)}
-        />
-      ) : (
-        <div style={treeStyle}>
-          <JsonNode
-            value={apiDsl as unknown as JsonValue}
-            depth={0}
-            isLast={true}
-            onChange={readOnly ? () => {} : handleTreeChange}
-          />
-        </div>
-      )}
     </div>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const wrapperStyle: CSSProperties = {
-  background: C.bg,
-  borderRadius: 10,
+const shellStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  height: "100%",
+  background: T.bg,
+  borderRadius: 12,
   overflow: "hidden",
-  fontFamily: "var(--font-nunito)",
-  fontSize: 12,
-  lineHeight: "22px",
-  color: C.text,
+  border: `1px solid ${T.border}`,
+  boxShadow: "0 4px 24px rgba(0,0,0,0.28), 0 1px 4px rgba(0,0,0,0.2)",
+  fontFamily: "'Menlo','Monaco','Consolas','Courier New',monospace",
 };
 
-const toolbarStyle: CSSProperties = {
+const tabBarStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  background: T.tabBar,
+  borderBottom: `1px solid ${T.gutterBorder}`,
+  height: 36,
+  flexShrink: 0,
+  borderRadius: "12px 12px 0 0",
+};
+
+const tabStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  height: "100%",
+  padding: "0 16px",
+  background: T.tabActiveBg,
+  borderTop: `2px solid ${T.tabAccent}`,
+  borderRight: `1px solid ${T.gutterBorder}`,
+  fontSize: 12,
+  color: T.tabFg,
+  userSelect: "none",
+  flexShrink: 0,
+  borderRadius: "10px 0 0 0",
+};
+
+const bodyStyle: CSSProperties = {
+  flex: 1,
+  overflow: "hidden",
+  position: "relative",
+};
+
+const rawActionBarStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "space-between",
-  padding: "8px 16px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  padding: "7px 14px",
+  background: T.bgAlt,
+  borderTop: `1px solid ${T.gutterBorder}`,
+  flexShrink: 0,
 };
 
-const rawToggleStyle: CSSProperties = {
-  background: "transparent",
-  border: "1px solid rgba(255,255,255,0.15)",
-  borderRadius: 6,
-  padding: "3px 10px",
-  fontFamily: "var(--font-nunito)",
-  fontSize: 11,
-  color: "rgba(255,255,255,0.6)",
-  cursor: "pointer",
+const statusBarStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  height: 24,
+  background: T.statusBg,
+  color: T.statusFg,
+  fontSize: 10.5,
+  padding: "0 14px",
+  flexShrink: 0,
+  fontFamily: "var(--font-sans)",
+  userSelect: "none",
+  borderTop: `1px solid ${T.gutterBorder}`,
+  borderRadius: "0 0 12px 12px",
+  letterSpacing: "0.01em",
 };
 
-const treeStyle: CSSProperties = {
-  padding: "12px 8px",
-  overflowX: "auto",
-};
-
-const leafInputStyle: CSSProperties = {
-  background: "rgba(255,255,255,0.08)",
-  border: "1px solid rgba(255,255,255,0.2)",
-  borderRadius: 4,
-  color: C.text,
-  fontFamily: "var(--font-nunito)",
-  fontSize: 12,
-  padding: "0 6px",
-  height: 20,
-  outline: "none",
-  minWidth: 80,
-};
-
-const rawTextareaStyle: CSSProperties = {
-  width: "100%",
-  background: "rgba(255,255,255,0.05)",
-  border: "1px solid rgba(255,255,255,0.15)",
-  borderRadius: 6,
-  color: C.text,
-  fontFamily: "var(--font-nunito)",
-  fontSize: 12,
-  lineHeight: 1.6,
-  padding: 12,
-  outline: "none",
-  resize: "vertical",
-  boxSizing: "border-box",
+const statusDotStyle: CSSProperties = {
+  width: 6,
+  height: 6,
+  borderRadius: "50%",
+  background: T.statusAccent,
+  flexShrink: 0,
 };

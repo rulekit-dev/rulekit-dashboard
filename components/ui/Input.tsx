@@ -34,47 +34,51 @@ export default function Input({
   const [focused, setFocused] = useState(false);
 
   const labelStyle: CSSProperties = {
+    fontFamily: "var(--font-sans)",
     fontWeight: 600,
     fontSize: "13px",
     color: "var(--ink)",
     marginBottom: "6px",
     display: "block",
+    letterSpacing: "-0.01em",
   };
 
   const hintStyle: CSSProperties = {
+    fontFamily: "var(--font-sans)",
     fontWeight: 400,
     fontSize: "12px",
     color: "var(--ink-muted)",
-    marginTop: "3px",
+    marginTop: "4px",
   };
 
   const errorMessageStyle: CSSProperties = {
+    fontFamily: "var(--font-sans)",
     fontWeight: 400,
     fontSize: "12px",
-    color: "#DC2626",
+    color: "var(--red)",
     marginTop: "5px",
   };
 
   const inputStyle: CSSProperties = {
     width: "100%",
-    background: "white",
+    background: "var(--white)",
     border: error
-      ? "1px solid #DC2626"
+      ? "1px solid var(--red)"
       : focused
-        ? "1px solid var(--orange)"
+        ? "1px solid var(--ink)"
         : "1px solid var(--border-med)",
     borderRadius: "8px",
     padding: "9px 12px",
-    fontFamily: mono ? "var(--font-nunito)" : "inherit",
+    fontFamily: mono ? "var(--font-mono)" : "var(--font-sans)",
     fontWeight: 400,
-    fontSize: mono ? "13px" : "14px",
+    fontSize: "13px",
     color: "var(--ink)",
     outline: "none",
-    transition: "border-color 0.2s, box-shadow 0.2s",
+    transition: "border-color 0.15s, box-shadow 0.15s",
     boxShadow: error
-      ? "0 0 0 3px rgba(220,38,38,0.1)"
+      ? "0 0 0 3px rgba(201,42,42,0.1)"
       : focused
-        ? "0 0 0 3px var(--orange-dim)"
+        ? "0 0 0 3px rgba(28,28,26,0.08)"
         : "none",
     boxSizing: "border-box",
     ...style,

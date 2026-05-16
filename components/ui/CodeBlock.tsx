@@ -80,7 +80,7 @@ export default function CodeBlock({ code, language }: CodeBlockProps) {
   };
 
   const codeStyle: CSSProperties = {
-    fontFamily: "var(--font-nunito)",
+    fontFamily: "var(--font-sans)",
     fontSize: "12px",
     lineHeight: 1.6,
     color: "#E5E5E3",
@@ -94,7 +94,7 @@ export default function CodeBlock({ code, language }: CodeBlockProps) {
     border: "1px solid rgba(255,255,255,0.15)",
     borderRadius: "6px",
     padding: "4px 8px",
-    fontFamily: "var(--font-nunito)",
+    fontFamily: "var(--font-sans)",
     fontSize: "11px",
     color: "rgba(255,255,255,0.6)",
     cursor: "pointer",

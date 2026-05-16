@@ -319,7 +319,7 @@ export default function RulesetEditorPage() {
                 style={{
                   ...tabBtnStyle,
                   color: isActive ? "var(--ink)" : "var(--ink-muted)",
-                  borderBottomColor: isActive ? "var(--orange)" : "transparent",
+                  borderBottomColor: isActive ? "var(--ink)" : "transparent",
                   fontWeight: isActive ? 600 : 400,
                 }}
               >
@@ -380,8 +380,10 @@ export default function RulesetEditorPage() {
           </div>
         )}
         {activeTab.type === "dsl" && (
-          <div style={{ ...scrollWrapperStyle, padding: 32 }}>
-            <DslEditor dsl={dsl} onChange={setDsl} readOnly={!canEdit} />
+          <div style={{ overflow: "auto", padding: "20px 24px", boxSizing: "border-box", background: "var(--surface)", height: "100%" }}>
+            <div style={{ height: 480 }}>
+              <DslEditor dsl={dsl} onChange={setDsl} readOnly={!canEdit} />
+            </div>
           </div>
         )}
       </div>
@@ -547,7 +549,7 @@ const tabBtnStyle: CSSProperties = {
   border: "none",
   borderBottom: "2px solid transparent",
   cursor: "pointer",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   padding: "10px 14px",
   display: "flex",
@@ -573,8 +575,12 @@ const editorAreaStyle: CSSProperties = {
 };
 
 const scrollWrapperStyle: CSSProperties = {
-  overflow: "auto",
+  overflowY: "auto",
+  overflowX: "hidden",
   height: "100%",
+  // bottom padding so content clears the fixed save bar
+  boxSizing: "border-box",
+  paddingBottom: 65,
 };
 
 const saveBarStyle: CSSProperties = {
@@ -601,7 +607,7 @@ const saveDotStyle: CSSProperties = {
   width: 8,
   height: 8,
   borderRadius: "50%",
-  background: "var(--orange)",
+  background: "var(--ink)",
   flexShrink: 0,
 };
 

@@ -250,6 +250,13 @@ export function downloadBundle(workspace: string, key: string, version: number |
 }
 
 // Admin: Users
+export function createUser(email: string) {
+  return request<import("./types").User>("/v1/admin/users", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
 export function listUsers(limit = 50, offset = 0) {
   return request<{ data: import("./types").User[] }>(
     `/v1/admin/users?limit=${limit}&offset=${offset}`

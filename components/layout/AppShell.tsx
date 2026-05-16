@@ -91,16 +91,16 @@ export default function AppShell({ children }: AppShellProps) {
       >
         <style>{`
           @keyframes dotPulse {
-            0%, 100% { transform: scale(0.6); opacity: 0.4; }
+            0%, 100% { transform: scale(0.6); opacity: 0.3; }
             50% { transform: scale(1); opacity: 1; }
           }
         `}</style>
         <div
           style={{
-            width: "10px",
-            height: "10px",
+            width: "9px",
+            height: "9px",
             borderRadius: "50%",
-            background: "var(--orange)",
+            background: "var(--ink)",
             animation: "dotPulse 1.2s ease-in-out infinite",
           }}
         />
@@ -120,7 +120,7 @@ export default function AppShell({ children }: AppShellProps) {
     return <Onboarding onComplete={handleOnboardingComplete} />;
   }
 
-  const sidebarWidth = sidebarCollapsed ? 60 : 240;
+  const sidebarWidth = sidebarCollapsed ? 60 : 232;
 
   return (
     <div>
@@ -128,6 +128,13 @@ export default function AppShell({ children }: AppShellProps) {
         workspaces={workspaces}
         selectedWorkspace={selectedWorkspace}
         onSelectWorkspace={handleSelectWorkspace}
+        onWorkspaceCreated={async (name) => {
+          const names = await fetchWorkspaces();
+          if (names.includes(name)) {
+            setSelectedWorkspace(name);
+            router.push(`/${name}/home`);
+          }
+        }}
         currentPath={pathname}
         userEmail={user.email}
         isAdmin={isAdmin}
@@ -138,7 +145,7 @@ export default function AppShell({ children }: AppShellProps) {
       <main
         style={{
           marginLeft: `${sidebarWidth}px`,
-          background: "var(--white)",
+          background: "var(--surface)",
           minHeight: "100vh",
           transition: "margin-left 0.2s ease",
         }}
@@ -171,8 +178,12 @@ function NoAccessScreen({ userEmail, onLogout }: { userEmail: string; onLogout: 
   return (
     <div style={pageStyle}>
       <div style={cardStyle}>
-        <div style={{ fontWeight: 800, fontSize: "24px", color: "var(--ink)", marginBottom: "4px" }}>
-          rulekit<span style={{ color: "var(--orange-light)" }}>.</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "4px" }}>
+          <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true">
+            <rect width="64" height="64" rx="13" fill="#111" />
+            <text x="32" y="44" fontFamily="Space Grotesk, system-ui, sans-serif" fontWeight="700" fontSize="38" fill="#fff" textAnchor="middle" dominantBaseline="auto">R</text>
+          </svg>
+          <span style={{ fontWeight: 700, fontSize: "16px", color: "var(--ink)", letterSpacing: "-0.03em" }}>rulekit</span>
         </div>
 
         <div

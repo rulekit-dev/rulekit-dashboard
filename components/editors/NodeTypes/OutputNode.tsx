@@ -83,7 +83,7 @@ const iconStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   fontSize: 10,
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontWeight: 700,
   flexShrink: 0,
 };
@@ -99,7 +99,7 @@ const titleStyle: CSSProperties = {
 };
 
 const tagStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 9,
   textTransform: "uppercase",
   color: "var(--ink-subtle)",
@@ -111,7 +111,7 @@ const bodyStyle: CSSProperties = {
 };
 
 const emptyStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontStyle: "italic",
   color: "var(--ink-subtle)",
@@ -123,7 +123,7 @@ const outputRowStyle: CSSProperties = {
   alignItems: "center",
   gap: 4,
   padding: "2px 0",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
 };
 
@@ -135,7 +135,7 @@ const footerStyle: CSSProperties = {
 };
 
 const footerTextStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 9,
   color: "var(--ink-subtle)",
   letterSpacing: "0.02em",

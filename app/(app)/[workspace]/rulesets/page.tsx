@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState, CSSProperties } from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
-import PageHeader from "@/components/layout/PageHeader";
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
-import Table, { TableRow, TableCell } from "@/components/ui/Table";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import ConfirmModal from "@/components/ui/ConfirmModal";
-import Skeleton from "@/components/ui/Skeleton";
+import DataTable, { DataTableColumn } from "@/components/ui/DataTable";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import { listRulesets, createRuleset, deleteRuleset } from "@/lib/api";
@@ -17,16 +14,18 @@ import type { Ruleset } from "@/lib/types";
 
 const KEY_RE = /^[a-z0-9_-]{1,128}$/;
 
-function formatDate(str: string) {
-  return new Date(str).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function timeAgo(str: string) {
+  const diff = Math.floor((Date.now() - new Date(str).getTime()) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(str).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 export default function RulesetsPage() {
   const params = useParams();
+  const router = useRouter();
   const workspace = params.workspace as string;
   const { hasRole } = useAuth();
   const { toast } = useToast();
@@ -35,6 +34,8 @@ export default function RulesetsPage() {
 
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<Ruleset | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createKey, setCreateKey] = useState("");
@@ -44,9 +45,6 @@ export default function RulesetsPage() {
   const [createNameError, setCreateNameError] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const [deleteTarget, setDeleteTarget] = useState<Ruleset | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
   useEffect(() => {
     listRulesets(workspace)
       .then((res) => setRulesets(Array.isArray(res) ? res : res.data || []))
@@ -55,33 +53,18 @@ export default function RulesetsPage() {
   }, [workspace, toast]);
 
   function openCreate() {
-    setCreateKey("");
-    setCreateName("");
-    setCreateDesc("");
-    setCreateKeyError("");
-    setCreateNameError("");
+    setCreateKey(""); setCreateName(""); setCreateDesc("");
+    setCreateKeyError(""); setCreateNameError("");
     setShowCreate(true);
   }
 
   async function handleCreate() {
     let valid = true;
-
-    if (!KEY_RE.test(createKey)) {
-      setCreateKeyError("Lowercase letters, numbers, hyphens, underscores only (1-128 chars)");
-      valid = false;
-    } else {
-      setCreateKeyError("");
-    }
-
-    if (!createName.trim()) {
-      setCreateNameError("Name is required");
-      valid = false;
-    } else {
-      setCreateNameError("");
-    }
-
+    if (!KEY_RE.test(createKey)) { setCreateKeyError("Lowercase letters, numbers, hyphens, underscores only (1-128 chars)"); valid = false; }
+    else setCreateKeyError("");
+    if (!createName.trim()) { setCreateNameError("Name is required"); valid = false; }
+    else setCreateNameError("");
     if (!valid) return;
-
     setCreating(true);
     try {
       const rs = await createRuleset(workspace, createKey, createName, createDesc);
@@ -110,113 +93,144 @@ export default function RulesetsPage() {
     }
   }
 
-  const linkStyle: CSSProperties = {
-    color: "var(--orange)",
-    textDecoration: "none",
-    fontWeight: 600,
-  };
-
-  const headers = [
-    { key: "key", label: "Key", mono: true },
-    { key: "name", label: "Name" },
-    { key: "description", label: "Description" },
-    { key: "updated", label: "Updated", mono: true },
-    { key: "actions", label: "", align: "right" },
+  const columns: DataTableColumn<Ruleset>[] = [
+    {
+      key: "key",
+      label: "Key",
+      width: "200px",
+      sortable: true,
+      searchable: true,
+      value: rs => rs.key,
+      render: (rs) => (
+        <span style={{
+          fontSize: 12, fontWeight: 600, letterSpacing: "-0.01em",
+          color: "var(--ink)",
+          background: "rgba(28,28,26,0.05)",
+          border: "1px solid var(--border)",
+          borderRadius: 6, padding: "3px 9px",
+          whiteSpace: "nowrap",
+        }}>
+          {rs.key}
+        </span>
+      ),
+    },
+    {
+      key: "name",
+      label: "Name",
+      width: "1fr",
+      sortable: true,
+      searchable: true,
+      value: rs => rs.name,
+      render: (rs) => (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>
+            {rs.name}
+          </span>
+          {rs.description && (
+            <span style={{
+              fontSize: 11, color: "var(--ink-subtle)",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360,
+            }}>
+              {rs.description}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "updated",
+      label: "Last updated",
+      width: "140px",
+      sortable: true,
+      value: rs => rs.updated_at,
+      render: (rs) => (
+        <span style={{ fontSize: 11, color: "var(--ink-subtle)" }}>
+          {timeAgo(rs.updated_at)}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      width: "140px",
+      align: "right",
+      render: (rs) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
+          <ActionBtn
+            label="View"
+            icon={<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1 6s2-4 5-4 5 4 5 4-2 4-5 4-5-4-5-4Z" stroke="currentColor" strokeWidth="1.2"/><circle cx="6" cy="6" r="1.5" stroke="currentColor" strokeWidth="1.2"/></svg>}
+            onClick={() => router.push(`/${workspace}/rulesets/${rs.key}`)}
+          />
+          {canEdit && (
+            <ActionBtn
+              label="Delete"
+              icon={<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M4.5 3V2h3v1M5 3v5.5M7 3v5.5M2.5 3l.5 6.5h6l.5-6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              onClick={() => setDeleteTarget(rs)}
+              danger
+            />
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
-    <div className="animate-fade-up">
-      <PageHeader eyebrow={workspace} title="Rulesets" />
+    <div style={{ minHeight: "100vh", background: "var(--surface)" }} className="animate-fade-up">
 
-      <div style={{ padding: "24px 32px" }}>
-        {canEdit && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "16px",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "13px",
-                color: "var(--ink-muted)",
-              }}
-            >
-              {!loading && `${rulesets.length} ruleset${rulesets.length !== 1 ? "s" : ""}`}
-            </div>
-            <Button variant="primary" onClick={openCreate}>New ruleset</Button>
-          </div>
-        )}
-
-        {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} width="100%" height="48px" />
-            ))}
-          </div>
-        ) : (
-          <Table
-            headers={headers}
-            emptyMessage="No rulesets yet."
-            emptyAction={canEdit ? <Button variant="primary" onClick={openCreate}>Create ruleset</Button> : undefined}
-          >
-            {rulesets.map((rs, index) => (
-              <TableRow key={rs.key} style={{ animationDelay: `${index * 0.05}s` }}>
-                <TableCell mono>
-                  <Link href={`/${workspace}/rulesets/${rs.key}`} style={linkStyle}>{rs.key}</Link>
-                </TableCell>
-                <TableCell primary>{rs.name}</TableCell>
-                <TableCell>{rs.description || "\u2014"}</TableCell>
-                <TableCell mono>{formatDate(rs.updated_at)}</TableCell>
-                <TableCell align="right">
-                  {canEdit && (
-                    <Button variant="danger" size="sm" onClick={() => setDeleteTarget(rs)}>
-                      Delete
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </Table>
-        )}
+      {/* Top bar */}
+      <div style={{
+        background: "var(--white)", borderBottom: "1px solid var(--border)",
+        padding: "0 28px", height: 52,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ink-subtle)" }}>
+            {workspace}
+          </span>
+          <span style={{ color: "var(--border-med)", fontSize: 12 }}>/</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>Rulesets</span>
+          {!loading && (
+            <span style={{
+              fontSize: 10, fontWeight: 600, color: "var(--ink-subtle)",
+              background: "var(--surface)", border: "1px solid var(--border)",
+              borderRadius: 5, padding: "2px 7px",
+            }}>
+              {rulesets.length}
+            </span>
+          )}
+        </div>
       </div>
 
+      <div style={{ padding: "24px 28px" }}>
+        <DataTable
+          columns={columns}
+          rows={rulesets}
+          rowKey={rs => rs.key}
+          loading={loading}
+          onRowClick={rs => router.push(`/${workspace}/rulesets/${rs.key}`)}
+          emptyTitle="No rulesets yet"
+          emptyDescription="Create your first ruleset to get started."
+          emptyAction={canEdit ? <Button variant="primary" onClick={openCreate}>Create ruleset</Button> : undefined}
+          pageSize={10}
+          addLabel="New ruleset"
+          onAdd={canEdit ? openCreate : undefined}
+        />
+      </div>
+
+      {/* Create modal */}
       <Modal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-        title="New ruleset"
+        open={showCreate} onClose={() => setShowCreate(false)} title="New ruleset"
         footer={
-          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button variant="primary" onClick={handleCreate} loading={creating}>Create</Button>
           </div>
         }
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          <Input
-            label="Key"
-            value={createKey}
-            onChange={(e) => setCreateKey(e.target.value)}
-            placeholder="my-ruleset"
-            mono
-            error={createKeyError}
-            hint="Lowercase letters, numbers, hyphens, underscores"
-          />
-          <Input
-            label="Name"
-            value={createName}
-            onChange={(e) => setCreateName(e.target.value)}
-            placeholder="My Ruleset"
-            error={createNameError}
-          />
-          <Input
-            label="Description"
-            value={createDesc}
-            onChange={(e) => setCreateDesc(e.target.value)}
-            placeholder="Optional description"
-          />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Input label="Key" value={createKey} onChange={e => setCreateKey(e.target.value)} placeholder="my-ruleset" mono error={createKeyError} hint="Lowercase letters, numbers, hyphens, underscores" />
+          <Input label="Name" value={createName} onChange={e => setCreateName(e.target.value)} placeholder="My Ruleset" error={createNameError} />
+          <Input label="Description" value={createDesc} onChange={e => setCreateDesc(e.target.value)} placeholder="Optional description" />
         </div>
       </Modal>
 
@@ -230,5 +244,40 @@ export default function RulesetsPage() {
         variant="danger"
       />
     </div>
+  );
+}
+
+function ActionBtn({ label, icon, onClick, danger }: {
+  label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const color = danger
+    ? (hovered ? "#C92A2A" : "var(--ink-muted)")
+    : (hovered ? "#2563EB" : "var(--ink-muted)");
+  const bg = danger
+    ? (hovered ? "rgba(201,42,42,0.08)" : "transparent")
+    : (hovered ? "rgba(37,99,235,0.07)" : "transparent");
+  const border = danger
+    ? (hovered ? "rgba(201,42,42,0.2)" : "var(--border)")
+    : (hovered ? "rgba(37,99,235,0.25)" : "var(--border)");
+
+  return (
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 5,
+        padding: "4px 10px", borderRadius: 6,
+        border: `1px solid ${border}`,
+        background: bg, color,
+        fontSize: 11, fontWeight: 600,
+        cursor: "pointer", transition: "all 0.13s",
+        fontFamily: "var(--font-sans)",
+      }}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

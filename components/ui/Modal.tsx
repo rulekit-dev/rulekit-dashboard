@@ -38,8 +38,8 @@ export default function Modal({
   const backdropStyle: CSSProperties = {
     position: "fixed",
     inset: 0,
-    background: "rgba(28,28,26,0.4)",
-    backdropFilter: "blur(4px)",
+    background: "rgba(28,28,26,0.35)",
+    backdropFilter: "blur(3px)",
     zIndex: 9998,
     display: "flex",
     alignItems: "center",
@@ -47,7 +47,8 @@ export default function Modal({
   };
 
   const panelStyle: CSSProperties = {
-    background: "white",
+    background: "var(--white)",
+    border: "1px solid var(--border-med)",
     borderRadius: "14px",
     padding: "28px",
     maxWidth: size === "sm" ? "480px" : "640px",
@@ -55,6 +56,7 @@ export default function Modal({
     position: "relative",
     maxHeight: "90vh",
     overflowY: "auto",
+    boxShadow: "0 12px 40px rgba(28,28,26,0.12), 0 2px 8px rgba(28,28,26,0.04)",
   };
 
   const headerStyle: CSSProperties = {
@@ -65,18 +67,20 @@ export default function Modal({
   };
 
   const titleStyle: CSSProperties = {
+    fontFamily: "var(--font-sans)",
     fontWeight: 700,
-    fontSize: "18px",
+    fontSize: "17px",
     color: "var(--ink)",
+    letterSpacing: "-0.02em",
     margin: 0,
   };
 
   const closeButtonStyle: CSSProperties = {
     background: "transparent",
     border: "1px solid var(--border-med)",
-    borderRadius: "8px",
-    width: "32px",
-    height: "32px",
+    borderRadius: "7px",
+    width: "30px",
+    height: "30px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -86,6 +90,7 @@ export default function Modal({
     lineHeight: 1,
     padding: 0,
     flexShrink: 0,
+    transition: "background 0.15s, color 0.15s",
   };
 
   const footerStyle: CSSProperties = {
@@ -93,6 +98,8 @@ export default function Modal({
     justifyContent: "flex-end",
     gap: "8px",
     marginTop: "24px",
+    paddingTop: "20px",
+    borderTop: "1px solid var(--border)",
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {

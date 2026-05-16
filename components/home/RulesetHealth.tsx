@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import Skeleton from "@/components/ui/Skeleton";
 import type { Ruleset, Version } from "@/lib/types";
@@ -17,88 +16,117 @@ interface RulesetHealthProps {
 
 type HealthStatus = "published" | "draft" | "never";
 
-function getStatus(
-  key: string,
-  versions: Map<string, Version[]>,
-  draftsSet: Set<string>
-): HealthStatus {
+function getStatus(key: string, versions: Map<string, Version[]>, draftsSet: Set<string>): HealthStatus {
   const vList = versions.get(key);
   const hasPublished = vList && vList.length > 0;
   const hasDraft = draftsSet.has(key);
-
   if (hasPublished && !hasDraft) return "published";
   if (hasDraft) return "draft";
   return "never";
 }
 
-const statusConfig: Record<HealthStatus, { dotColor: string }> = {
-  published: { dotColor: "var(--green)" },
-  draft: { dotColor: "var(--orange)" },
-  never: { dotColor: "var(--ink-subtle)" },
+const statusMeta: Record<HealthStatus, { label: string; color: string; bg: string; border: string }> = {
+  published: { label: "published", color: "var(--green)", bg: "rgba(26,127,75,0.1)", border: "rgba(26,127,75,0.2)" },
+  draft:     { label: "draft",     color: "var(--amber)", bg: "rgba(180,83,9,0.1)",  border: "rgba(180,83,9,0.2)" },
+  never:     { label: "unpublished", color: "var(--ink-subtle)", bg: "rgba(28,28,26,0.05)", border: "rgba(28,28,26,0.1)" },
 };
 
-export default function RulesetHealth({
-  workspace,
-  rulesets,
-  versions,
-  draftsSet,
-  loading,
-}: RulesetHealthProps) {
+export default function RulesetHealth({ workspace, rulesets, versions, draftsSet, loading }: RulesetHealthProps) {
   const [showAll, setShowAll] = useState(false);
   const maxVisible = 6;
   const visible = showAll ? rulesets : rulesets.slice(0, maxVisible);
 
+  const publishedCount = rulesets.filter(rs => getStatus(rs.key, versions, draftsSet) === "published").length;
+  const draftCount = rulesets.filter(rs => getStatus(rs.key, versions, draftsSet) === "draft").length;
+  const neverCount = rulesets.filter(rs => getStatus(rs.key, versions, draftsSet) === "never").length;
+
   return (
-    <div
-      style={{
-        background: "var(--white)",
-        borderRadius: "12px",
-        border: "1px solid var(--border)",
-        padding: "24px",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div style={{
+      background: "var(--white)",
+      borderRadius: "12px",
+      border: "1px solid var(--border)",
+      height: "100%",
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+    }}>
       {/* Header */}
-      <div style={{ marginBottom: "16px" }}>
-        <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--ink)" }}>
-          Ruleset health
+      <div style={{
+        padding: "20px 22px",
+        borderBottom: "1px solid var(--border)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexShrink: 0,
+        minHeight: 64,
+      }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.02em" }}>
+            Ruleset health
+          </div>
+          <div style={{ fontSize: 11, color: "var(--ink-subtle)", marginTop: 2 }}>
+            Draft and publish status
+          </div>
         </div>
-        <div style={{ fontSize: "13px", fontWeight: 400, color: "var(--ink-muted)" }}>
-          Draft and publish status
-        </div>
+
+        {/* Summary pills */}
+        {!loading && rulesets.length > 0 && (
+          <div style={{ display: "flex", gap: 5 }}>
+            {publishedCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 600,
+                color: "var(--green)", background: "rgba(26,127,75,0.08)",
+                border: "1px solid rgba(26,127,75,0.18)", borderRadius: 5, padding: "3px 8px",
+              }}>
+                {publishedCount} live
+              </span>
+            )}
+            {draftCount > 0 && (
+              <span style={{
+                fontSize: 10, fontWeight: 600,
+                color: "var(--amber)", background: "rgba(180,83,9,0.08)",
+                border: "1px solid rgba(180,83,9,0.18)", borderRadius: 5, padding: "3px 8px",
+              }}>
+                {draftCount} draft
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* List */}
-      <div style={{ flex: 1, overflowY: "auto", maxHeight: "260px" }}>
+      <div style={{ flex: 1, overflowY: "auto" }}>
         {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
             {[1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} width="100%" height="44px" />
+              <div key={i} style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+                <Skeleton width="100%" height="32px" />
+              </div>
             ))}
           </div>
         ) : rulesets.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "48px 0",
-              fontSize: "14px",
-              fontWeight: 400,
-              color: "var(--ink-subtle)",
-            }}
-          >
-            No rulesets in this workspace.
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            padding: "48px 24px", gap: 8,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: "var(--surface)", border: "1px solid var(--border)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="4" width="12" height="9" rx="2" stroke="var(--ink-subtle)" strokeWidth="1.5" />
+                <path d="M5 4V3a3 3 0 016 0v1" stroke="var(--ink-subtle)" strokeWidth="1.5" />
+              </svg>
+            </div>
+            <span style={{ fontSize: 12, color: "var(--ink-subtle)" }}>No rulesets in this workspace</span>
           </div>
         ) : (
           <>
             {visible.map((rs, i) => {
               const status = getStatus(rs.key, versions, draftsSet);
               const vList = versions.get(rs.key);
-              const latestVersion = vList && vList.length > 0
-                ? Math.max(...vList.map((v) => v.version))
-                : null;
-
+              const latestVersion = vList && vList.length > 0 ? Math.max(...vList.map(v => v.version)) : null;
               return (
                 <HealthRow
                   key={rs.key}
@@ -112,12 +140,8 @@ export default function RulesetHealth({
               );
             })}
             {!showAll && rulesets.length > maxVisible && (
-              <div style={{ paddingTop: "12px" }}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowAll(true)}
-                >
+              <div style={{ padding: "12px 22px" }}>
+                <Button variant="ghost" size="sm" onClick={() => setShowAll(true)}>
                   View all {rulesets.length} rulesets →
                 </Button>
               </div>
@@ -129,28 +153,17 @@ export default function RulesetHealth({
   );
 }
 
-function HealthRow({
-  workspace,
-  ruleset,
-  status,
-  latestVersion,
-  isLast,
-  index,
-}: {
-  workspace: string;
-  ruleset: Ruleset;
-  status: HealthStatus;
-  latestVersion: number | null;
-  isLast: boolean;
-  index: number;
+function HealthRow({ workspace, ruleset, status, latestVersion, isLast, index }: {
+  workspace: string; ruleset: Ruleset; status: HealthStatus;
+  latestVersion: number | null; isLast: boolean; index: number;
 }) {
   const [hovered, setHovered] = useState(false);
-  const cfg = statusConfig[status];
+  const meta = statusMeta[status];
 
   return (
     <Link
       href={`/${workspace}/rulesets/${ruleset.key}`}
-      style={{ textDecoration: "none", color: "inherit" }}
+      style={{ textDecoration: "none", color: "inherit", display: "block" }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -159,71 +172,57 @@ function HealthRow({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: "12px",
-          padding: "10px 4px",
+          gap: 12,
+          padding: "12px 22px",
           borderBottom: isLast ? "none" : "1px solid var(--border)",
-          background: hovered ? "rgba(28,28,26,0.02)" : "transparent",
-          borderRadius: "4px",
-          transition: "background 0.15s",
-          animationDelay: `${index * 100}ms`,
+          background: hovered ? "var(--surface)" : "transparent",
+          transition: "background 0.12s",
+          animationDelay: `${index * 60}ms`,
         }}
       >
-        {/* Status dot */}
-        <div
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: "50%",
-            background: cfg.dotColor,
-            flexShrink: 0,
-          }}
-        />
+        {/* Status indicator */}
+        <div style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: meta.color,
+          boxShadow: status === "published" ? "0 0 0 3px rgba(26,127,75,0.12)"
+            : status === "draft" ? "0 0 0 3px rgba(180,83,9,0.12)" : "none",
+          flexShrink: 0,
+        }} />
 
         {/* Name + key */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: "14px",
-              fontWeight: 600,
-              color: "var(--ink)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
+          <div style={{
+            fontSize: 13, fontWeight: 600, color: "var(--ink)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
             {ruleset.name}
           </div>
-          <div
-            style={{
-              fontFamily: "var(--font-dm-mono)",
-              fontWeight: 400,
-              fontSize: "12px",
-              color: "var(--ink-muted)",
-            }}
-          >
+          <div style={{
+            fontFamily: "var(--font-sans)", fontWeight: 400, fontSize: 10, color: "var(--ink-subtle)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
             {ruleset.key}
           </div>
         </div>
 
         {/* Badges */}
-        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+        <div style={{ display: "flex", gap: 5, flexShrink: 0, alignItems: "center" }}>
           {latestVersion !== null && (
-            <Badge variant="gray">v{latestVersion}</Badge>
-          )}
-          {status === "draft" && (
-            <Badge variant="orange">draft</Badge>
-          )}
-          {status === "never" && (
-            <span
-              style={{
-                fontSize: "11px",
-                fontStyle: "italic",
-                color: "var(--ink-subtle)",
-              }}
-            >
-              never published
+            <span style={{
+              fontFamily: "var(--font-sans)", fontSize: 10, fontWeight: 500,
+              color: "var(--ink-muted)", background: "var(--surface)",
+              border: "1px solid var(--border)", borderRadius: 4, padding: "1px 5px",
+            }}>
+              v{latestVersion}
             </span>
           )}
+          <span style={{
+            fontFamily: "var(--font-sans)", fontSize: 10, fontWeight: 500,
+            color: meta.color, background: meta.bg,
+            border: `1px solid ${meta.border}`, borderRadius: 4, padding: "1px 6px",
+          }}>
+            {meta.label}
+          </span>
         </div>
       </div>
     </Link>

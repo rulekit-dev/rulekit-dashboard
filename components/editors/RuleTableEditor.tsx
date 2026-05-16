@@ -87,8 +87,8 @@ function InputColumnPicker({
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                   >
-                    <span style={{ fontFamily: "var(--font-dm-mono)", fontSize: 12 }}>{field}</span>
-                    <span style={{ fontFamily: "var(--font-nunito)", fontSize: 10, color: "var(--ink-subtle)", marginLeft: "auto" }}>{type}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{field}</span>
+                    <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: "var(--ink-subtle)", marginLeft: "auto" }}>{type}</span>
                   </button>
                 ))}
               </>
@@ -104,8 +104,8 @@ function InputColumnPicker({
                     onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface)"; }}
                     onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
                   >
-                    <span style={{ fontFamily: "var(--font-dm-mono)", fontSize: 12 }}>{field}</span>
-                    <span style={{ fontFamily: "var(--font-nunito)", fontSize: 10, color: "var(--orange)", marginLeft: "auto" }}>{type}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{field}</span>
+                    <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: "var(--ink)", marginLeft: "auto" }}>{type}</span>
                   </button>
                 ))}
               </>
@@ -159,8 +159,8 @@ function OutputColumnPicker({
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface)"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
               >
-                <span style={{ fontFamily: "var(--font-dm-mono)", fontSize: 12 }}>{field}</span>
-                <span style={{ fontFamily: "var(--font-nunito)", fontSize: 10, color: "var(--orange)", marginLeft: "auto" }}>{type}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{field}</span>
+                <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: "var(--ink)", marginLeft: "auto" }}>{type}</span>
               </button>
             ))}
           </div>
@@ -228,8 +228,8 @@ function ValueDropdown({
                 onMouseLeave={() => setHoveredItem(null)}
                 style={{
                   ...opDropdownItemStyle,
-                  background: opt === value ? "var(--orange-dim)" : hoveredItem === opt ? "var(--surface)" : "transparent",
-                  color: opt === value ? "var(--orange-deep)" : opt === "" ? "var(--ink-subtle)" : "var(--ink-muted)",
+                  background: opt === value ? "rgba(28,28,26,0.06)" : hoveredItem === opt ? "var(--surface)" : "transparent",
+                  color: opt === value ? "var(--ink)" : opt === "" ? "var(--ink-subtle)" : "var(--ink-muted)",
                   fontWeight: opt === value ? 600 : 500,
                   fontStyle: opt === "" ? "italic" : "normal",
                 }}
@@ -285,8 +285,8 @@ function OpDropdown({
                 onClick={() => { onChange(o.value); setOpen(false); }}
                 style={{
                   ...opDropdownItemStyle,
-                  background: o.value === value ? "var(--orange-dim)" : "transparent",
-                  color: o.value === value ? "var(--orange-deep)" : "var(--ink-muted)",
+                  background: o.value === value ? "rgba(28,28,26,0.06)" : "transparent",
+                  color: o.value === value ? "var(--ink)" : "var(--ink-muted)",
                   fontWeight: o.value === value ? 600 : 500,
                 }}
                 onMouseEnter={(e) => { if (o.value !== value) (e.currentTarget as HTMLElement).style.background = "var(--surface)"; }}
@@ -590,7 +590,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                   colSpan={Math.max(outputCount, 1)}
                 >
                   <div style={{ display: "flex", alignItems: "center" }}>
-                    <span style={{ ...groupLabelStyle, color: "var(--orange-deep)" }}>Outputs</span>
+                    <span style={{ ...groupLabelStyle, color: "var(--ink)" }}>Outputs</span>
                     <OutputColumnPicker allFields={outputSchemaFields} selectedFields={outputColumns} onAdd={addOutputColumn} />
                   </div>
                 </th>
@@ -627,7 +627,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                   ))
                 ) : (
                   <th style={{ ...colThStyle, borderRight: outputCount > 0 ? "2px solid var(--border-med)" : "1px solid var(--border)" }}>
-                    <span style={{ fontFamily: "var(--font-nunito)", fontSize: 10, color: "var(--ink-subtle)", fontStyle: "italic" }}>
+                    <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: "var(--ink-subtle)", fontStyle: "italic" }}>
                       No inputs
                     </span>
                   </th>
@@ -639,9 +639,9 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                       <div style={colHeaderInnerStyle}>
                         <div>
                           <div style={colHeaderLabelStyle}>{fieldLabel(key)}</div>
-                          <div style={{ ...colHeaderFieldStyle, color: "var(--orange)" }}>{key}</div>
+                          <div style={{ ...colHeaderFieldStyle, color: "var(--ink)" }}>{key}</div>
                         </div>
-                        <button type="button" onClick={() => removeOutputColumn(key)} style={{ ...colRemoveBtnStyle, color: "var(--orange)" }} title={`Remove ${key}`}>
+                        <button type="button" onClick={() => removeOutputColumn(key)} style={{ ...colRemoveBtnStyle, color: "var(--ink)" }} title={`Remove ${key}`}>
                           <X size={12} />
                         </button>
                       </div>
@@ -649,7 +649,7 @@ export default function RuleTableEditor({ dsl, nodeId, onChange }: RuleTableEdit
                   ))
                 ) : (
                   <th style={{ ...outputColThStyle, borderRight: "1px solid var(--border)" }}>
-                    <span style={{ fontFamily: "var(--font-nunito)", fontSize: 10, color: "var(--orange)", fontStyle: "italic", opacity: 0.6 }}>
+                    <span style={{ fontFamily: "var(--font-sans)", fontSize: 10, color: "var(--ink)", fontStyle: "italic", opacity: 0.6 }}>
                       No outputs
                     </span>
                   </th>
@@ -771,11 +771,11 @@ const groupThStyle: CSSProperties = {
 
 const outputGroupThStyle: CSSProperties = {
   ...groupThStyle,
-  background: "var(--orange-dim)",
+  background: "rgba(28,28,26,0.06)",
 };
 
 const groupLabelStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontWeight: 700,
   textTransform: "uppercase",
@@ -784,7 +784,7 @@ const groupLabelStyle: CSSProperties = {
 };
 
 const colNumStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   color: "var(--ink-subtle)",
 };
@@ -801,7 +801,7 @@ const colThStyle: CSSProperties = {
 
 const outputColThStyle: CSSProperties = {
   ...colThStyle,
-  background: "var(--orange-dim)",
+  background: "rgba(28,28,26,0.06)",
 };
 
 const colHeaderInnerStyle: CSSProperties = {
@@ -812,7 +812,7 @@ const colHeaderInnerStyle: CSSProperties = {
 };
 
 const colHeaderLabelStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   fontWeight: 600,
   color: "var(--ink)",
@@ -820,7 +820,7 @@ const colHeaderLabelStyle: CSSProperties = {
 };
 
 const colHeaderFieldStyle: CSSProperties = {
-  fontFamily: "var(--font-dm-mono)",
+  fontFamily: "var(--font-mono)",
   fontSize: 10,
   color: "var(--ink-subtle)",
   display: "inline-flex",
@@ -829,7 +829,7 @@ const colHeaderFieldStyle: CSSProperties = {
 };
 
 const colHeaderTypeBadge: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 9,
   padding: "1px 4px",
   borderRadius: 3,
@@ -857,7 +857,7 @@ const bodyRowStyle: CSSProperties = {
 const indexTdStyle: CSSProperties = {
   padding: "6px 12px",
   verticalAlign: "middle",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   color: "var(--ink-subtle)",
   borderRight: "1px solid var(--border)",
@@ -880,7 +880,7 @@ const opDropdownBtnStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 4,
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   fontWeight: 600,
   padding: "4px 8px",
@@ -888,7 +888,7 @@ const opDropdownBtnStyle: CSSProperties = {
   borderRadius: 6,
   outline: "none",
   background: "var(--white)",
-  color: "var(--orange)",
+  color: "var(--ink)",
   cursor: "pointer",
   flexShrink: 0,
   whiteSpace: "nowrap",
@@ -902,14 +902,14 @@ const opDropdownItemStyle: CSSProperties = {
   cursor: "pointer",
   borderRadius: 6,
   textAlign: "left",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   transition: "background 0.12s, color 0.12s",
 };
 
 
 const cellValueInputStyle: CSSProperties = {
-  fontFamily: "var(--font-dm-mono)",
+  fontFamily: "var(--font-mono)",
   fontSize: 11,
   padding: "4px 6px",
   border: "1px solid var(--border)",
@@ -944,7 +944,7 @@ const addRowBtnStyle: CSSProperties = {
   background: "transparent",
   border: "none",
   borderTop: "1px solid var(--border)",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   color: "var(--ink-muted)",
   cursor: "pointer",
@@ -967,8 +967,8 @@ const addColBtnStyle: CSSProperties = {
 
 const addOutputColBtnStyle: CSSProperties = {
   ...addColBtnStyle,
-  borderColor: "var(--orange)",
-  color: "var(--orange)",
+  borderColor: "var(--ink)",
+  color: "var(--ink)",
   opacity: 0.6,
 };
 
@@ -986,7 +986,7 @@ const fixedDropdownStyle: CSSProperties = {
 };
 
 const pickerTitleStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontWeight: 600,
   textTransform: "uppercase",
@@ -1012,7 +1012,7 @@ const pickerItemStyle: CSSProperties = {
 };
 
 const emptyStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 13,
   color: "var(--ink-subtle)",
   padding: 40,

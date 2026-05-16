@@ -56,7 +56,7 @@ export default function Select({
     border: error
       ? "1px solid #DC2626"
       : focused
-        ? "1px solid var(--orange)"
+        ? "1px solid var(--ink)"
         : "1px solid var(--border-med)",
     borderRadius: "8px",
     padding: "9px 12px",
@@ -69,7 +69,7 @@ export default function Select({
     boxShadow: error
       ? "0 0 0 3px rgba(220,38,38,0.1)"
       : focused
-        ? "0 0 0 3px var(--orange-dim)"
+        ? "0 0 0 3px rgba(28,28,26,0.06)"
         : "none",
     boxSizing: "border-box",
     appearance: "none",

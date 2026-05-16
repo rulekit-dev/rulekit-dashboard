@@ -1,25 +1,37 @@
 @import "tailwindcss";
 
 :root {
-  --orange: #F05A28;
-  --orange-light: #FF7A4D;
-  --orange-dim: #FEE8E0;
-  --orange-deep: #C03D14;
+  /* Base */
+  --white: #ffffff;
+  --black: #111111;
+
+  /* Ink scale */
   --ink: #1C1C1A;
   --ink-muted: #6B6B67;
   --ink-subtle: #AEADA6;
-  --surface: #F7F6F2;
-  --surface-2: #EEECEA;
-  --white: #FFFFFF;
-  --border: rgba(28,28,26,0.11);
-  --border-med: rgba(28,28,26,0.17);
-  --green: #16A34A;
-  --green-dim: #DCFCE7;
+
+  /* Surfaces — warm off-white */
+  --surface: #F8F8F6;
+  --surface-2: #F0F0EE;
+
+  /* Borders */
+  --border: rgba(28,28,26,0.09);
+  --border-med: rgba(28,28,26,0.14);
+
+  /* Semantic status */
+  --green: #1A7F4B;
+  --green-dim: #E6F7EE;
   --green-deep: #15803D;
+  --red: #C92A2A;
+  --red-dim: #FEF2F2;
+  --amber: #B45309;
+  --amber-dim: #FFFBEB;
   --blue: #2563EB;
   --blue-dim: #EFF6FF;
-  --purple: #7C3AED;
-  --purple-dim: #F5F3FF;
+
+  /* Fonts */
+  --font-sans: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), 'Menlo', 'Consolas', monospace;
 }
 
 * {
@@ -31,6 +43,9 @@
 body {
   background: var(--surface);
   color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -96,7 +111,7 @@ body {
 
 /* Modal animation */
 @keyframes modal-in {
-  from { opacity: 0; transform: scale(0.95); }
+  from { opacity: 0; transform: scale(0.97); }
   to { opacity: 1; transform: scale(1); }
 }
 
@@ -106,11 +121,11 @@ body {
 }
 
 .modal-backdrop {
-  animation: modal-backdrop-in 0.3s ease forwards;
+  animation: modal-backdrop-in 0.2s ease forwards;
 }
 
 .modal-panel {
-  animation: modal-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: modal-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 /* Save bar slide up */
@@ -166,7 +181,7 @@ body {
 
 /* React Flow overrides */
 .react-flow__background {
-  background-color: #F5F4F0 !important;
+  background-color: var(--surface) !important;
 }
 
 .react-flow {

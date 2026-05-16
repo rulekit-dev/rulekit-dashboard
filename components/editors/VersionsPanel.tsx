@@ -142,7 +142,7 @@ const versionBadgeStyle: CSSProperties = {
 };
 
 const versionNumStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 14,
   fontWeight: 700,
   color: "var(--ink)",
@@ -152,7 +152,7 @@ const latestBadgeStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 3,
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontWeight: 600,
   color: "var(--green-deep)",
@@ -166,13 +166,13 @@ const metaRowStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   gap: 4,
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   color: "var(--ink-subtle)",
 };
 
 const checksumStyle: CSSProperties = {
-  fontFamily: "var(--font-dm-mono)",
+  fontFamily: "var(--font-mono)",
   fontSize: 11,
   color: "var(--ink-subtle)",
   background: "var(--surface)",
@@ -181,7 +181,7 @@ const checksumStyle: CSSProperties = {
 };
 
 const emptyStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 13,
   color: "var(--ink-subtle)",
   textAlign: "center",

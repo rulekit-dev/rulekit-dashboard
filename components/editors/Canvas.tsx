@@ -181,8 +181,8 @@ function DraggableComponent({ type, icon, label }: { type: string; icon: string;
       onMouseLeave={() => setHovered(false)}
       style={{
         ...componentCardStyle,
-        borderColor: hovered ? "var(--orange)" : "var(--border)",
-        background: hovered ? "var(--orange-dim)" : "var(--surface)",
+        borderColor: hovered ? "var(--ink)" : "var(--border)",
+        background: hovered ? "rgba(28,28,26,0.06)" : "var(--surface)",
         transform: hovered ? "translateY(-1px)" : "none",
         boxShadow: hovered ? "0 2px 8px rgba(240,90,40,0.12)" : "none",
       }}
@@ -335,7 +335,7 @@ function CanvasInner({ dsl, onChange, onOpenTable, simulationStates, simulationO
           ...e,
           animated: isActive,
           style: isActive
-            ? { stroke: "var(--orange)", strokeWidth: 2 }
+            ? { stroke: "var(--ink)", strokeWidth: 2 }
             : { stroke: "var(--border-med)", strokeWidth: 1.5, opacity: 0.4 },
         };
       })
@@ -614,7 +614,7 @@ function CanvasInner({ dsl, onChange, onOpenTable, simulationStates, simulationO
           proOptions={{ hideAttribution: true }}
           snapToGrid
           snapGrid={[10, 10]}
-          connectionLineStyle={{ stroke: "var(--orange)", strokeWidth: 1.5 }}
+          connectionLineStyle={{ stroke: "var(--ink)", strokeWidth: 1.5 }}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="rgba(28,28,26,0.12)" />
           <MiniMap style={{ background: "white" }} />
@@ -678,7 +678,7 @@ const sidebarStyle: React.CSSProperties = {
 };
 
 const sidebarTitleStyle: React.CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontWeight: 700,
   textTransform: "uppercase",
@@ -701,7 +701,7 @@ const componentCardStyle: React.CSSProperties = {
 };
 
 const sidebarHintStyle: React.CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   color: "var(--ink-subtle)",
   textAlign: "center",
@@ -713,19 +713,19 @@ const componentIconStyle: React.CSSProperties = {
   width: 22,
   height: 22,
   borderRadius: "50%",
-  background: "var(--orange-dim)",
-  color: "var(--orange)",
+  background: "rgba(28,28,26,0.06)",
+  color: "var(--ink)",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   fontSize: 10,
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontWeight: 700,
   flexShrink: 0,
 };
 
 const componentLabelStyle: React.CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   fontWeight: 600,
   color: "var(--ink)",
@@ -760,7 +760,7 @@ const menuStyle: React.CSSProperties = {
 };
 
 const menuTitleStyle: React.CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontWeight: 600,
   textTransform: "uppercase",
@@ -779,7 +779,7 @@ const menuItemStyle: React.CSSProperties = {
   background: "transparent",
   cursor: "pointer",
   borderRadius: 6,
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   color: "var(--ink)",
   textAlign: "left",
@@ -789,5 +789,5 @@ const menuHintStyle: React.CSSProperties = {
   marginLeft: "auto",
   fontSize: 10,
   color: "var(--ink-subtle)",
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
 };

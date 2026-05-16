@@ -22,8 +22,8 @@ export default function Tabs({ tabs, activeKey, onChange, variant = "pill" }: Ta
   };
 
   const getPillStyle = (isActive: boolean): CSSProperties => ({
-    background: isActive ? "var(--orange-dim)" : "var(--surface-2)",
-    color: isActive ? "var(--orange-deep)" : "var(--ink-muted)",
+    background: isActive ? "rgba(28,28,26,0.06)" : "var(--surface-2)",
+    color: isActive ? "var(--ink)" : "var(--ink-muted)",
     fontSize: "13px",
     fontWeight: 600,
     padding: "6px 12px",
@@ -40,7 +40,7 @@ export default function Tabs({ tabs, activeKey, onChange, variant = "pill" }: Ta
     fontWeight: isActive ? 700 : 400,
     padding: "6px 0",
     border: "none",
-    borderBottom: isActive ? "2px solid var(--orange)" : "2px solid transparent",
+    borderBottom: isActive ? "2px solid var(--ink)" : "2px solid transparent",
     cursor: "pointer",
     transition: "all 0.2s",
   });

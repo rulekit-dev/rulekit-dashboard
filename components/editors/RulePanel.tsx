@@ -98,7 +98,7 @@ const closeButtonStyle: CSSProperties = {
 };
 
 const sectionLabelStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   textTransform: "uppercase",
   color: "var(--ink-subtle)",
@@ -108,15 +108,15 @@ const sectionLabelStyle: CSSProperties = {
 };
 
 const summaryStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   color: "var(--ink-muted)",
 };
 
 const editTableLinkStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
-  color: "var(--orange)",
+  color: "var(--ink)",
   cursor: "pointer",
   marginTop: 8,
   background: "none",

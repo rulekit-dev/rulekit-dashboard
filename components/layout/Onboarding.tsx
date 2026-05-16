@@ -74,7 +74,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             marginBottom: "4px",
           }}
         >
-          rulekit<span style={{ color: "var(--orange-light)" }}>.</span>
+          rulekit<span style={{ color: "var(--ink-muted)" }}>.</span>
         </div>
 
         <div

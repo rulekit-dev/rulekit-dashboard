@@ -2,43 +2,64 @@
 
 import { useState, useEffect, useRef, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { User, UserRole, roleName, ROLE_VIEWER, ROLE_EDITOR, ROLE_ADMIN } from "@/lib/types";
+import { User, UserRole, ROLE_VIEWER, ROLE_EDITOR, ROLE_ADMIN } from "@/lib/types";
 import * as api from "@/lib/api";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
-import PageHeader from "@/components/layout/PageHeader";
-import Table, { TableRow, TableCell } from "@/components/ui/Table";
+import DataTable, { DataTableColumn } from "@/components/ui/DataTable";
 import Button from "@/components/ui/Button";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import Modal from "@/components/ui/Modal";
+import Input from "@/components/ui/Input";
 import Skeleton from "@/components/ui/Skeleton";
 
-function formatDate(s: string) {
-  if (!s) return "—";
-  return new Date(s).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+function timeAgo(str: string) {
+  if (!str) return "—";
+  const diff = Math.floor((Date.now() - new Date(str).getTime()) / 1000);
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(str).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-
 const ROLE_OPTIONS = [
-  { value: ROLE_VIEWER, label: "Viewer", description: "Read-only access", color: "#2563EB", bg: "var(--blue-dim)" },
-  { value: ROLE_EDITOR, label: "Editor", description: "Can edit rulesets", color: "#7C3AED", bg: "var(--purple-dim)" },
-  { value: ROLE_ADMIN, label: "Admin", description: "Full access", color: "var(--orange-deep)", bg: "var(--orange-dim)" },
+  { value: ROLE_VIEWER, label: "Viewer", description: "Read-only access", color: "#2563EB", bg: "rgba(37,99,235,0.08)" },
+  { value: ROLE_EDITOR, label: "Editor", description: "Can edit rulesets", color: "#2563EB", bg: "rgba(37,99,235,0.08)" },
+  { value: ROLE_ADMIN, label: "Admin", description: "Full access", color: "var(--ink)", bg: "rgba(28,28,26,0.06)" },
 ];
 
-// --- Workspace picker dropdown (fixed-position so it escapes table clipping) ---
+const roleBadgeStyle: CSSProperties = {
+  fontFamily: "var(--font-sans)",
+  fontSize: 11,
+  fontWeight: 600,
+  padding: "2px 10px",
+  borderRadius: 12,
+  display: "inline-block",
+  whiteSpace: "nowrap",
+};
 
-function WorkspacePickerDropdown({
-  workspaces,
-  value,
-  onChange,
-}: {
-  workspaces: string[];
-  value: string;
-  onChange: (v: string) => void;
+const fieldLabelStyle: CSSProperties = {
+  fontFamily: "var(--font-sans)",
+  fontSize: 11,
+  fontWeight: 600,
+  color: "var(--ink-muted)",
+  display: "block",
+  marginBottom: 4,
+};
+
+const sectionLabelStyle: CSSProperties = {
+  fontFamily: "var(--font-sans)",
+  fontSize: 10,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  color: "var(--ink-subtle)",
+  marginBottom: 8,
+};
+
+function WorkspacePickerDropdown({ workspaces, value, onChange }: {
+  workspaces: string[]; value: string; onChange: (v: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
@@ -60,8 +81,7 @@ function WorkspacePickerDropdown({
     <div ref={ref} style={{ position: "relative" }}>
       <span style={fieldLabelStyle}>Workspace</span>
       <div
-        role="button"
-        tabIndex={0}
+        role="button" tabIndex={0}
         onClick={() => setOpen(!open)}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpen(!open); }}
         onMouseEnter={() => setHoveredTrigger(true)}
@@ -75,25 +95,20 @@ function WorkspacePickerDropdown({
       >
         <div style={{
           width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-          background: value ? "var(--orange-dim)" : "var(--surface-2)",
+          background: value ? "rgba(28,28,26,0.06)" : "var(--surface-2)",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          <span style={{ fontSize: "9px", fontWeight: 700, color: value ? "var(--orange-deep)" : "var(--ink-subtle)", textTransform: "uppercase" }}>
+          <span style={{ fontSize: "9px", fontWeight: 700, color: value ? "var(--ink)" : "var(--ink-subtle)", textTransform: "uppercase" }}>
             {value ? (value === "*" ? "*" : value.charAt(0)) : "?"}
           </span>
         </div>
-        <span style={{
-          flex: 1, fontSize: 13, fontFamily: "var(--font-dm-mono)",
-          color: value ? "var(--ink)" : "var(--ink-subtle)",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
+        <span style={{ flex: 1, fontSize: 13, color: value ? "var(--ink)" : "var(--ink-subtle)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {value || "Select workspace"}
         </span>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}>
           <path d="M3 4.5L6 7.5L9 4.5" stroke="var(--ink-subtle)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
-
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
@@ -106,9 +121,7 @@ function WorkspacePickerDropdown({
             const isHov = hoveredItem === ws;
             return (
               <div
-                key={ws}
-                role="button"
-                tabIndex={0}
+                key={ws} role="button" tabIndex={0}
                 onClick={() => { onChange(ws); setOpen(false); }}
                 onKeyDown={(e) => { if (e.key === "Enter") { onChange(ws); setOpen(false); } }}
                 onMouseEnter={() => setHoveredItem(ws)}
@@ -116,9 +129,9 @@ function WorkspacePickerDropdown({
                 style={{
                   display: "flex", alignItems: "center", gap: 9, fontSize: 13,
                   fontWeight: isSelected ? 600 : 500,
-                  color: isSelected ? "var(--orange-deep)" : isHov ? "var(--ink)" : "var(--ink-muted)",
+                  color: isSelected ? "var(--ink)" : isHov ? "var(--ink)" : "var(--ink-muted)",
                   padding: "7px 9px", borderRadius: 6, cursor: "pointer",
-                  background: isSelected ? "var(--orange-dim)" : isHov ? "var(--surface)" : "transparent",
+                  background: isSelected ? "rgba(28,28,26,0.06)" : isHov ? "var(--surface)" : "transparent",
                   transition: "background 0.12s, color 0.12s",
                 }}
               >
@@ -127,14 +140,14 @@ function WorkspacePickerDropdown({
                   background: isSelected ? "rgba(192,61,20,0.1)" : "var(--surface-2)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                 }}>
-                  <span style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", color: isSelected ? "var(--orange-deep)" : "var(--ink-subtle)" }}>
+                  <span style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", color: isSelected ? "var(--ink)" : "var(--ink-subtle)" }}>
                     {ws === "*" ? "*" : ws.charAt(0)}
                   </span>
                 </div>
-                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "var(--font-dm-mono)" }}>{ws}</span>
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ws}</span>
                 {isSelected && (
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--orange)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--ink)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
               </div>
@@ -146,20 +159,11 @@ function WorkspacePickerDropdown({
   );
 }
 
-// --- Role picker dropdown ---
-
-function RolePickerDropdown({
-  value,
-  onChange,
-}: {
-  value: number;
-  onChange: (v: number) => void;
-}) {
+function RolePickerDropdown({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const [open, setOpen] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<number | null>(null);
   const [hoveredTrigger, setHoveredTrigger] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
   const selected = ROLE_OPTIONS.find((o) => o.value === value) ?? ROLE_OPTIONS[0];
 
   useEffect(() => {
@@ -175,8 +179,7 @@ function RolePickerDropdown({
     <div ref={ref} style={{ position: "relative" }}>
       <span style={fieldLabelStyle}>Role</span>
       <div
-        role="button"
-        tabIndex={0}
+        role="button" tabIndex={0}
         onClick={() => setOpen(!open)}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setOpen(!open); }}
         onMouseEnter={() => setHoveredTrigger(true)}
@@ -188,15 +191,12 @@ function RolePickerDropdown({
           transition: "all 0.15s ease", boxSizing: "border-box",
         }}
       >
-        <span style={{ ...roleBadgeStyle, background: selected.bg, color: selected.color }}>
-          {selected.label}
-        </span>
+        <span style={{ ...roleBadgeStyle, background: selected.bg, color: selected.color }}>{selected.label}</span>
         <span style={{ flex: 1 }} />
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }}>
           <path d="M3 4.5L6 7.5L9 4.5" stroke="var(--ink-subtle)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
-
       {open && (
         <div style={{
           position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
@@ -208,9 +208,7 @@ function RolePickerDropdown({
             const isHov = hoveredItem === opt.value;
             return (
               <div
-                key={opt.value}
-                role="button"
-                tabIndex={0}
+                key={opt.value} role="button" tabIndex={0}
                 onClick={() => { onChange(opt.value); setOpen(false); }}
                 onKeyDown={(e) => { if (e.key === "Enter") { onChange(opt.value); setOpen(false); } }}
                 onMouseEnter={() => setHoveredItem(opt.value)}
@@ -225,7 +223,7 @@ function RolePickerDropdown({
                 <span style={{ fontSize: 11, color: "var(--ink-subtle)", flex: 1 }}>{opt.description}</span>
                 {isSelected && (
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--orange)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--ink)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
               </div>
@@ -237,17 +235,7 @@ function RolePickerDropdown({
   );
 }
 
-// --- Manage Roles Modal ---
-
-function ManageRolesModal({
-  open,
-  onClose,
-  user,
-}: {
-  open: boolean;
-  onClose: () => void;
-  user: User;
-}) {
+function ManageRolesModal({ open, onClose, user }: { open: boolean; onClose: () => void; user: User }) {
   const { toast } = useToast();
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [workspaces, setWorkspaces] = useState<string[]>([]);
@@ -304,8 +292,8 @@ function ManageRolesModal({
     <Modal open={open} onClose={onClose} title="Manage roles" size="sm">
       <div style={{ marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "var(--surface)", borderRadius: 8, marginBottom: 20 }}>
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--orange-dim)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--orange-deep)", textTransform: "uppercase" }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(28,28,26,0.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--ink)", textTransform: "uppercase" }}>
               {user.email.charAt(0)}
             </span>
           </div>
@@ -314,7 +302,6 @@ function ManageRolesModal({
           </span>
         </div>
 
-        {/* Existing roles */}
         <div style={{ marginBottom: 20 }}>
           <div style={sectionLabelStyle}>Current roles</div>
           {loading ? (
@@ -342,9 +329,7 @@ function ManageRolesModal({
                         {r.workspace === "*" ? "*" : r.workspace.charAt(0)}
                       </span>
                     </div>
-                    <span style={{ fontFamily: "var(--font-dm-mono)", fontSize: 12, color: "var(--ink)", flex: 1 }}>
-                      {r.workspace}
-                    </span>
+                    <span style={{ fontSize: 12, color: "var(--ink)", flex: 1 }}>{r.workspace}</span>
                     <span style={{ ...roleBadgeStyle, background: roleOpt.bg, color: roleOpt.color }}>
                       {roleOpt.label}
                     </span>
@@ -372,7 +357,6 @@ function ManageRolesModal({
           )}
         </div>
 
-        {/* Add new role */}
         <div style={{ padding: "14px", background: "var(--surface)", borderRadius: 10, border: "1px solid var(--border)" }}>
           <div style={sectionLabelStyle}>Add role</div>
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
@@ -398,8 +382,6 @@ function ManageRolesModal({
   );
 }
 
-// --- Main page ---
-
 export default function AdminUsersPage() {
   const { isAdmin } = useAuth();
   const router = useRouter();
@@ -410,17 +392,43 @@ export default function AdminUsersPage() {
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [manageRolesUser, setManageRolesUser] = useState<User | null>(null);
 
+  const [showCreate, setShowCreate] = useState(false);
+  const [createEmail, setCreateEmail] = useState("");
+  const [createEmailError, setCreateEmailError] = useState("");
+  const [creating, setCreating] = useState(false);
+
   useEffect(() => {
-    if (!isAdmin) {
-      router.replace("/admin/workspaces");
-      return;
-    }
-    api
-      .listUsers()
+    if (!isAdmin) { router.replace("/admin/workspaces"); return; }
+    api.listUsers()
       .then((res) => setUsers(Array.isArray(res) ? res : res.data || []))
       .catch((err) => toast("Error", err.message, "error"))
       .finally(() => setLoading(false));
   }, [isAdmin, router, toast]);
+
+  function openCreate() {
+    setCreateEmail(""); setCreateEmailError("");
+    setShowCreate(true);
+  }
+
+  async function handleCreate() {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(createEmail)) {
+      setCreateEmailError("Enter a valid email address");
+      return;
+    }
+    setCreateEmailError("");
+    setCreating(true);
+    try {
+      const user = await api.createUser(createEmail);
+      setUsers((prev) => [...prev, user]);
+      setShowCreate(false);
+      toast("User added", undefined, "success");
+    } catch (err: unknown) {
+      const e = err as { message?: string };
+      toast("Error", e.message || "Failed to add user", "error");
+    } finally {
+      setCreating(false);
+    }
+  }
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -435,39 +443,121 @@ export default function AdminUsersPage() {
     setDeleteTarget(null);
   };
 
-  const headers = [
-    { key: "email", label: "Email" },
-    { key: "created", label: "Created", mono: true },
-    { key: "last_login", label: "Last Login", mono: true },
-    { key: "actions", label: "Actions", align: "right" },
+  const columns: DataTableColumn<User>[] = [
+    {
+      key: "email",
+      label: "Email",
+      width: "1fr",
+      sortable: true,
+      searchable: true,
+      value: u => u.email,
+      render: (u) => (
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
+            background: "rgba(28,28,26,0.06)", border: "1px solid var(--border)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--ink)", textTransform: "uppercase" }}>
+              {u.email.charAt(0)}
+            </span>
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--ink)" }}>{u.email}</span>
+        </div>
+      ),
+    },
+    {
+      key: "created",
+      label: "Created",
+      width: "140px",
+      sortable: true,
+      value: u => u.created_at,
+      render: (u) => (
+        <span style={{ fontSize: 11, color: "var(--ink-subtle)" }}>{timeAgo(u.created_at)}</span>
+      ),
+    },
+    {
+      key: "last_login",
+      label: "Last login",
+      width: "140px",
+      sortable: true,
+      value: u => u.last_login_at || "",
+      render: (u) => (
+        <span style={{ fontSize: 11, color: u.last_login_at ? "var(--ink-subtle)" : "var(--ink-subtle)", fontStyle: u.last_login_at ? "normal" : "italic" }}>
+          {u.last_login_at ? timeAgo(u.last_login_at) : "Never"}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      label: "",
+      width: "160px",
+      align: "right",
+      render: (u) => (
+        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
+          <ActionBtn label="Manage" variant="manage" onClick={() => setManageRolesUser(u)} />
+          {isAdmin && <ActionBtn label="Delete" variant="delete" onClick={() => setDeleteTarget(u)} />}
+        </div>
+      ),
+    },
   ];
 
   return (
-    <div className="animate-fade-up">
-      <PageHeader eyebrow="admin" title="Users" />
-
-      <div style={{ padding: "24px 32px" }}>
-        <div style={{ fontSize: "13px", color: "var(--ink-muted)", marginBottom: "16px" }}>
-          {!loading && `${users.length} user${users.length !== 1 ? "s" : ""}`}
+    <div style={{ minHeight: "100vh", background: "var(--surface)" }} className="animate-fade-up">
+      <div style={{
+        background: "var(--white)", borderBottom: "1px solid var(--border)",
+        padding: "0 28px", height: 52,
+        display: "flex", alignItems: "center",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--ink-subtle)" }}>Admin</span>
+          <span style={{ color: "var(--border-med)", fontSize: 12 }}>/</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}>Users</span>
+          {!loading && (
+            <span style={{ fontSize: 10, fontWeight: 600, color: "var(--ink-subtle)", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 5, padding: "2px 7px" }}>
+              {users.length}
+            </span>
+          )}
         </div>
-        {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {[1, 2, 3].map((i) => <Skeleton key={i} width="100%" height="48px" />)}
-          </div>
-        ) : (
-          <Table headers={headers} emptyMessage="No users yet.">
-            {users.map((user, i) => (
-              <UserRow
-                key={user.id}
-                user={user}
-                index={i}
-                onManageRoles={() => setManageRolesUser(user)}
-                onDelete={() => setDeleteTarget(user)}
-              />
-            ))}
-          </Table>
-        )}
       </div>
+
+      <div style={{ padding: "24px 28px" }}>
+        <DataTable
+          columns={columns}
+          rows={users}
+          rowKey={u => u.id}
+          loading={loading}
+          emptyTitle="No users yet"
+          emptyDescription="Add users so they can sign in with their email."
+          emptyAction={isAdmin ? <Button variant="primary" onClick={openCreate}>Add user</Button> : undefined}
+          pageSize={10}
+          addLabel="Add user"
+          onAdd={isAdmin ? openCreate : undefined}
+        />
+      </div>
+
+      <Modal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Add user"
+        footer={
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button variant="ghost" onClick={() => setShowCreate(false)}>Cancel</Button>
+            <Button variant="primary" onClick={handleCreate} loading={creating}>Add</Button>
+          </div>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Input
+            label="Email"
+            value={createEmail}
+            onChange={e => setCreateEmail(e.target.value)}
+            placeholder="user@example.com"
+            error={createEmailError}
+            hint="The user will be able to sign in with this email via OTP."
+          />
+        </div>
+      </Modal>
 
       <ConfirmModal
         open={!!deleteTarget}
@@ -490,66 +580,25 @@ export default function AdminUsersPage() {
   );
 }
 
-function UserRow({
-  user,
-  index,
-  onManageRoles,
-  onDelete,
-}: {
-  user: User;
-  index: number;
-  onManageRoles: () => void;
-  onDelete: () => void;
-}) {
+function ActionBtn({ label, variant, onClick }: { label: string; variant: "manage" | "delete"; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  const isDelete = variant === "delete";
   return (
-    <TableRow>
-      <TableCell primary>
-        <span
-          className="animate-row"
-          style={{ animationDelay: `${index * 0.05}s` }}
-        >
-          {user.email}
-        </span>
-      </TableCell>
-      <TableCell mono>{formatDate(user.created_at)}</TableCell>
-      <TableCell mono>{formatDate(user.last_login_at)}</TableCell>
-      <TableCell align="right">
-        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-          <Button variant="ghost" size="sm" onClick={onManageRoles}>Manage</Button>
-          <Button variant="danger" size="sm" onClick={onDelete}>Delete</Button>
-        </div>
-      </TableCell>
-    </TableRow>
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex", alignItems: "center", gap: 5,
+        padding: "4px 10px", borderRadius: 6,
+        border: `1px solid ${isDelete ? (hovered ? "rgba(201,42,42,0.2)" : "var(--border)") : (hovered ? "rgba(37,99,235,0.25)" : "var(--border)")}`,
+        background: isDelete ? (hovered ? "rgba(201,42,42,0.08)" : "transparent") : (hovered ? "rgba(37,99,235,0.07)" : "transparent"),
+        color: isDelete ? (hovered ? "#C92A2A" : "var(--ink-muted)") : (hovered ? "#2563EB" : "var(--ink-muted)"),
+        fontSize: 11, fontWeight: 600, cursor: "pointer",
+        transition: "all 0.13s", fontFamily: "var(--font-sans)",
+      }}
+    >
+      {label}
+    </button>
   );
 }
-
-// --- Shared styles ---
-
-const fieldLabelStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
-  fontSize: 11,
-  fontWeight: 600,
-  color: "var(--ink-muted)",
-  display: "block",
-  marginBottom: 4,
-};
-
-const roleBadgeStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
-  fontSize: 11,
-  fontWeight: 600,
-  padding: "2px 10px",
-  borderRadius: 12,
-  display: "inline-block",
-  whiteSpace: "nowrap",
-};
-
-const sectionLabelStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
-  fontSize: 10,
-  fontWeight: 700,
-  textTransform: "uppercase",
-  letterSpacing: "0.05em",
-  color: "var(--ink-subtle)",
-  marginBottom: 8,
-};

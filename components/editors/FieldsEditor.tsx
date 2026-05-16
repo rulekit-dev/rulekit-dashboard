@@ -10,16 +10,16 @@ interface FieldsEditorProps {
 }
 
 const TYPE_OPTIONS: { value: SchemaField["type"]; label: string; color: string; bg: string }[] = [
-  { value: "string", label: "string", color: "#7C3AED", bg: "var(--purple-dim)" },
-  { value: "number", label: "number", color: "#2563EB", bg: "var(--blue-dim)" },
-  { value: "boolean", label: "boolean", color: "#D97706", bg: "#FEF3C7" },
+  { value: "string", label: "string", color: "#2563EB", bg: "var(--blue-dim)" },
+  { value: "number", label: "number", color: "#D97706", bg: "#FEF3C7" },
+  { value: "boolean", label: "boolean", color: "#9333EA", bg: "rgba(147,51,234,0.08)" },
   { value: "enum", label: "enum", color: "#16A34A", bg: "var(--green-dim)" },
 ];
 
 const TYPE_COLORS: Record<string, { bg: string; text: string }> = {
-  string: { bg: "var(--purple-dim)", text: "#7C3AED" },
-  number: { bg: "var(--blue-dim)", text: "#2563EB" },
-  boolean: { bg: "#FEF3C7", text: "#D97706" },
+  string: { bg: "var(--blue-dim)", text: "#2563EB" },
+  number: { bg: "#FEF3C7", text: "#D97706" },
+  boolean: { bg: "rgba(147,51,234,0.08)", text: "#9333EA" },
   enum: { bg: "var(--green-dim)", text: "#16A34A" },
 };
 
@@ -111,7 +111,7 @@ function TypeDropdown({
                 <span style={{ flex: 1 }} />
                 {isSelected && (
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--orange)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--ink)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 )}
               </div>
@@ -353,7 +353,7 @@ export default function FieldsEditor({ schema, onChange, readOnly = false }: Fie
       {/* Outputs section */}
       <div style={sectionStyle}>
         <div style={sectionHeaderStyle}>
-          <div style={{ ...sectionDotStyle, background: "var(--orange)" }} />
+          <div style={{ ...sectionDotStyle, background: "#16A34A" }} />
           <span style={sectionTitleStyle}>Outputs</span>
           <span style={sectionCountStyle}>{outputFields.length}</span>
         </div>
@@ -362,7 +362,7 @@ export default function FieldsEditor({ schema, onChange, readOnly = false }: Fie
           fields={outputFields}
           readOnly={readOnly}
           onRemove={handleRemove}
-          directionColor="var(--orange)"
+          directionColor="var(--ink)"
         />
 
         {outputFields.length === 0 && (
@@ -376,7 +376,7 @@ export default function FieldsEditor({ schema, onChange, readOnly = false }: Fie
             direction="output"
             schema={schema}
             onChange={onChange}
-            accentColor="var(--orange)"
+            accentColor="#16A34A"
           />
         )}
       </div>
@@ -404,13 +404,13 @@ const titleStyle: CSSProperties = {
 };
 
 const countStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   color: "var(--ink-subtle)",
 };
 
 const descriptionStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 13,
   color: "var(--ink-muted)",
   marginBottom: 24,
@@ -436,7 +436,7 @@ const sectionDotStyle: CSSProperties = {
 };
 
 const sectionTitleStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontWeight: 700,
   fontSize: 13,
   color: "var(--ink)",
@@ -445,7 +445,7 @@ const sectionTitleStyle: CSSProperties = {
 };
 
 const sectionCountStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   color: "var(--ink-subtle)",
   background: "var(--surface)",
@@ -469,7 +469,7 @@ const tableStyle: CSSProperties = {
 };
 
 const thStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 10,
   fontWeight: 600,
   textTransform: "uppercase",
@@ -491,13 +491,13 @@ const tdStyle: CSSProperties = {
 };
 
 const fieldNameStyle: CSSProperties = {
-  fontFamily: "var(--font-dm-mono)",
+  fontFamily: "var(--font-mono)",
   fontSize: 13,
   fontWeight: 500,
 };
 
 const typeBadgeStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   fontWeight: 600,
   padding: "2px 10px",
@@ -506,7 +506,7 @@ const typeBadgeStyle: CSSProperties = {
 };
 
 const typeBadgeInlineStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   fontWeight: 600,
   padding: "2px 10px",
@@ -515,7 +515,7 @@ const typeBadgeInlineStyle: CSSProperties = {
 };
 
 const optionsStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   color: "var(--ink-muted)",
 };
@@ -531,7 +531,7 @@ const removeBtnStyle: CSSProperties = {
 };
 
 const emptyStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 13,
   color: "var(--ink-subtle)",
   padding: "24px 0",
@@ -560,7 +560,7 @@ const addFormRowStyle: CSSProperties = {
 };
 
 const formLabelStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 11,
   fontWeight: 600,
   color: "var(--ink-muted)",
@@ -571,7 +571,7 @@ const formLabelStyle: CSSProperties = {
 const inputStyle: CSSProperties = {
   width: "100%",
   boxSizing: "border-box",
-  fontFamily: "var(--font-dm-mono)",
+  fontFamily: "var(--font-mono)",
   fontSize: 13,
   padding: "7px 10px",
   borderWidth: "1px",
@@ -584,7 +584,7 @@ const inputStyle: CSSProperties = {
 };
 
 const addBtnStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontWeight: 600,
   fontSize: 13,
   padding: "7px 16px",
@@ -615,7 +615,7 @@ const dropdownMenuStyle: CSSProperties = {
 };
 
 const errorStyle: CSSProperties = {
-  fontFamily: "var(--font-nunito)",
+  fontFamily: "var(--font-sans)",
   fontSize: 12,
   color: "#DC2626",
   marginTop: 8,

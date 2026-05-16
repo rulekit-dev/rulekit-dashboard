@@ -30,18 +30,18 @@ let toastId = 0;
 
 const accentColors: Record<ToastType, string> = {
   success: "var(--green)",
-  error: "#DC2626",
-  info: "var(--orange)",
+  error: "var(--red)",
+  info: "var(--ink)",
 };
 
 function ToastPanel({ item, onClose }: { item: ToastItem; onClose: () => void }) {
   const panelStyle: CSSProperties = {
-    background: "white",
-    border: "1px solid var(--border)",
+    background: "var(--white)",
+    border: "1px solid var(--border-med)",
     borderRadius: "10px",
     padding: "14px 16px",
     minWidth: "280px",
-    boxShadow: "0 4px 24px rgba(28,28,26,0.12)",
+    boxShadow: "0 8px 32px rgba(28,28,26,0.10), 0 2px 6px rgba(28,28,26,0.04)",
     borderLeft: `3px solid ${accentColors[item.type]}`,
     display: "flex",
     justifyContent: "space-between",
@@ -50,15 +50,18 @@ function ToastPanel({ item, onClose }: { item: ToastItem; onClose: () => void })
   };
 
   const titleStyle: CSSProperties = {
+    fontFamily: "var(--font-sans)",
     fontWeight: 600,
-    fontSize: "14px",
+    fontSize: "13px",
     color: "var(--ink)",
     margin: 0,
+    letterSpacing: "-0.01em",
   };
 
   const messageStyle: CSSProperties = {
+    fontFamily: "var(--font-sans)",
     fontWeight: 400,
-    fontSize: "13px",
+    fontSize: "12px",
     color: "var(--ink-muted)",
     margin: 0,
     marginTop: "2px",
