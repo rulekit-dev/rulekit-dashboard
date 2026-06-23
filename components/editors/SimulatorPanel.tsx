@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useCallback, CSSProperties } from "react";
-import type { DSL } from "@/lib/types";
+import React, { useState, useCallback, useMemo, CSSProperties } from "react";
+import type { DSL, SchemaField } from "@/lib/types";
 import * as api from "@/lib/api";
 import Button from "@/components/ui/Button";
 
@@ -26,27 +26,24 @@ interface SimulatorPanelProps {
   onSimulated?: (result: SimulationResult | null) => void;
 }
 
-const TABS = ["Output", "Input", "Trace"] as const;
+const TABS = ["Output", "Trace", "JSON"] as const;
 type Tab = (typeof TABS)[number];
 
-function buildDefaultInput(dsl: DSL): Record<string, unknown> {
-  const input: Record<string, unknown> = {};
-  for (const [field, def] of Object.entries(dsl.schema)) {
+function inputFields(dsl: DSL): [string, SchemaField][] {
+  return Object.entries(dsl.schema).filter(([, f]) => f.direction === "input");
+}
+
+function buildDefaultValues(dsl: DSL): Record<string, unknown> {
+  const values: Record<string, unknown> = {};
+  for (const [field, def] of inputFields(dsl)) {
     switch (def.type) {
-      case "number":
-        input[field] = 0;
-        break;
-      case "boolean":
-        input[field] = false;
-        break;
-      case "enum":
-        input[field] = def.options?.[0] ?? "";
-        break;
-      default:
-        input[field] = "";
+      case "number":  values[field] = 0; break;
+      case "boolean": values[field] = false; break;
+      case "enum":    values[field] = def.options?.[0] ?? ""; break;
+      default:        values[field] = "";
     }
   }
-  return input;
+  return values;
 }
 
 export default function SimulatorPanel({
@@ -57,9 +54,7 @@ export default function SimulatorPanel({
   onToggle,
   onSimulated,
 }: SimulatorPanelProps) {
-  const [requestText, setRequestText] = useState(() =>
-    JSON.stringify(buildDefaultInput(dsl), null, 2)
-  );
+  const [values, setValues] = useState<Record<string, unknown>>(() => buildDefaultValues(dsl));
   const [output, setOutput] = useState<Record<string, unknown> | null>(null);
   const [trace, setTrace] = useState<TraceEntry[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>("Output");
@@ -67,13 +62,14 @@ export default function SimulatorPanel({
   const [error, setError] = useState<string | null>(null);
   const [totalDuration, setTotalDuration] = useState<number | null>(null);
 
+  const fields = useMemo(() => inputFields(dsl), [dsl]);
+
   const handleRun = useCallback(async () => {
     setRunning(true);
     setError(null);
     try {
-      const input = JSON.parse(requestText);
       const start = performance.now();
-      const res = await api.evaluateRuleset(workspace, rulesetKey, input);
+      const res = await api.evaluateRuleset(workspace, rulesetKey, values);
       const elapsed = Math.round((performance.now() - start) * 1000);
       setTotalDuration(elapsed);
       setOutput(res.result);
@@ -89,16 +85,20 @@ export default function SimulatorPanel({
     } finally {
       setRunning(false);
     }
-  }, [requestText, workspace, rulesetKey]);
+  }, [values, workspace, rulesetKey, onSimulated]);
 
   const handleReset = useCallback(() => {
-    setRequestText(JSON.stringify(buildDefaultInput(dsl), null, 2));
+    setValues(buildDefaultValues(dsl));
     setOutput(null);
     setTrace([]);
     setError(null);
     setTotalDuration(null);
     onSimulated?.(null);
   }, [dsl, onSimulated]);
+
+  const setValue = useCallback((field: string, value: unknown) => {
+    setValues((prev) => ({ ...prev, [field]: value }));
+  }, []);
 
   if (collapsed) {
     return (
@@ -122,28 +122,35 @@ export default function SimulatorPanel({
           {totalDuration != null && (
             <span style={durationStyle}>{(totalDuration / 1000).toFixed(1)}ms</span>
           )}
-          <button onClick={handleReset} style={resetBtnStyle}>
-            Reset
-          </button>
-          <Button variant="primary" size="sm" onClick={handleRun} loading={running}>
-            Run
-          </Button>
+          <button onClick={handleReset} style={resetBtnStyle}>Reset</button>
+          <Button variant="primary" size="sm" onClick={handleRun} loading={running}>Run</Button>
         </div>
       </div>
 
       <div style={bodyStyle}>
+        {/* Left: schema-driven input form */}
         <div style={requestSideStyle}>
-          <div style={sectionHeaderStyle}>Request</div>
-          <textarea
-            value={requestText}
-            onChange={(e) => setRequestText(e.target.value)}
-            style={textareaStyle}
-            spellCheck={false}
-          />
+          <div style={sectionHeaderStyle}>Input</div>
+          {fields.length === 0 ? (
+            <div style={emptyStyle}>No input fields defined in schema.</div>
+          ) : (
+            <div style={fieldListStyle}>
+              {fields.map(([field, def]) => (
+                <FieldRow
+                  key={field}
+                  field={field}
+                  def={def}
+                  value={values[field]}
+                  onChange={(v) => setValue(field, v)}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={dividerStyle} />
 
+        {/* Right: output / trace / raw JSON */}
         <div style={responseSideStyle}>
           <div style={tabBarStyle}>
             {TABS.map((tab) => (
@@ -153,8 +160,7 @@ export default function SimulatorPanel({
                 style={{
                   ...tabStyle,
                   color: activeTab === tab ? "var(--ink)" : "var(--ink-muted)",
-                  borderBottomColor:
-                    activeTab === tab ? "var(--ink)" : "transparent",
+                  borderBottomColor: activeTab === tab ? "var(--ink)" : "transparent",
                   fontWeight: activeTab === tab ? 600 : 400,
                 }}
               >
@@ -167,31 +173,36 @@ export default function SimulatorPanel({
             {error && <div style={errorStyle}>{error}</div>}
 
             {activeTab === "Output" && !error && (
-              <pre style={preStyle}>
-                {output ? JSON.stringify(output, null, 2) : "Run to see output"}
-              </pre>
-            )}
-
-            {activeTab === "Input" && (
-              <pre style={preStyle}>
-                {requestText}
-              </pre>
+              output ? (
+                <div style={outputGridStyle}>
+                  {Object.entries(output).map(([k, v]) => (
+                    <div key={k} style={outputRowStyle}>
+                      <span style={outputKeyStyle}>{k}</span>
+                      <span style={outputValStyle}>{JSON.stringify(v)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={emptyStyle}>Run to see output</div>
+              )
             )}
 
             {activeTab === "Trace" && !error && (
-              <div style={{ padding: 0 }}>
-                {trace.length === 0 ? (
-                  <pre style={preStyle}>Run to see trace</pre>
-                ) : (
-                  trace.map((t, i) => (
-                    <div key={i} style={traceRowStyle}>
-                      <div style={traceIndicatorStyle(t.matched)} />
-                      <span style={traceNameStyle}>{t.rule_name}</span>
-                      <span style={traceDurationStyle}>{t.duration_us}us</span>
-                    </div>
-                  ))
-                )}
-              </div>
+              trace.length === 0 ? (
+                <div style={emptyStyle}>Run to see trace</div>
+              ) : (
+                trace.map((t, i) => (
+                  <div key={i} style={traceRowStyle}>
+                    <div style={traceIndicatorStyle(t.matched)} />
+                    <span style={traceNameStyle}>{t.rule_name || t.rule_id}</span>
+                    <span style={traceDurationStyle}>{t.duration_us}μs</span>
+                  </div>
+                ))
+              )
+            )}
+
+            {activeTab === "JSON" && (
+              <pre style={preStyle}>{JSON.stringify(values, null, 2)}</pre>
             )}
           </div>
         </div>
@@ -199,6 +210,92 @@ export default function SimulatorPanel({
     </div>
   );
 }
+
+// --- Per-field input control ---
+
+function FieldRow({
+  field,
+  def,
+  value,
+  onChange,
+}: {
+  field: string;
+  def: SchemaField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  return (
+    <div style={fieldRowStyle}>
+      <label style={fieldLabelStyle} title={field}>{field}</label>
+      <div style={fieldControlStyle}>
+        <FieldControl field={field} def={def} value={value} onChange={onChange} />
+      </div>
+      <span style={fieldTypeStyle}>{def.type}</span>
+    </div>
+  );
+}
+
+function FieldControl({
+  field,
+  def,
+  value,
+  onChange,
+}: {
+  field: string;
+  def: SchemaField;
+  value: unknown;
+  onChange: (v: unknown) => void;
+}) {
+  switch (def.type) {
+    case "number":
+      return (
+        <input
+          type="number"
+          value={value as number}
+          onChange={(e) => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
+          style={inputStyle}
+        />
+      );
+
+    case "boolean":
+      return (
+        <button
+          role="switch"
+          aria-checked={!!value}
+          onClick={() => onChange(!value)}
+          style={toggleStyle(!!value)}
+        >
+          <span style={toggleThumbStyle(!!value)} />
+        </button>
+      );
+
+    case "enum":
+      return (
+        <select
+          value={value as string}
+          onChange={(e) => onChange(e.target.value)}
+          style={selectStyle}
+        >
+          {(def.options ?? []).map((opt) => (
+            <option key={opt} value={opt}>{opt}</option>
+          ))}
+        </select>
+      );
+
+    default:
+      return (
+        <input
+          type="text"
+          value={value as string}
+          onChange={(e) => onChange(e.target.value)}
+          style={inputStyle}
+          placeholder={field}
+        />
+      );
+  }
+}
+
+// --- Icons ---
 
 function ChevronUpIcon() {
   return (
@@ -215,6 +312,8 @@ function ChevronDownIcon() {
     </svg>
   );
 }
+
+// --- Styles ---
 
 const collapsedBarStyle: CSSProperties = {
   borderTop: "1px solid var(--border)",
@@ -290,6 +389,7 @@ const requestSideStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
+  minWidth: 0,
 };
 
 const sectionHeaderStyle: CSSProperties = {
@@ -303,18 +403,95 @@ const sectionHeaderStyle: CSSProperties = {
   flexShrink: 0,
 };
 
-const textareaStyle: CSSProperties = {
+const fieldListStyle: CSSProperties = {
+  overflowY: "auto",
   flex: 1,
-  resize: "none",
-  border: "none",
-  outline: "none",
+  padding: "4px 0 8px",
+};
+
+const fieldRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "4px 12px",
+  minHeight: 32,
+};
+
+const fieldLabelStyle: CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 11,
+  color: "var(--ink)",
+  width: 120,
+  flexShrink: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const fieldControlStyle: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+};
+
+const fieldTypeStyle: CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 10,
+  color: "var(--ink-subtle)",
+  flexShrink: 0,
+  width: 48,
+  textAlign: "right",
+};
+
+const inputStyle: CSSProperties = {
+  width: "100%",
   fontFamily: "var(--font-mono)",
   fontSize: 12,
-  lineHeight: 1.6,
-  padding: "4px 12px 12px",
   color: "var(--ink)",
-  background: "transparent",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: 5,
+  padding: "3px 8px",
+  outline: "none",
+  boxSizing: "border-box",
 };
+
+const selectStyle: CSSProperties = {
+  width: "100%",
+  fontFamily: "var(--font-mono)",
+  fontSize: 12,
+  color: "var(--ink)",
+  background: "var(--surface)",
+  border: "1px solid var(--border)",
+  borderRadius: 5,
+  padding: "3px 8px",
+  outline: "none",
+  boxSizing: "border-box",
+  cursor: "pointer",
+};
+
+const toggleStyle = (on: boolean): CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  width: 36,
+  height: 20,
+  borderRadius: 10,
+  background: on ? "var(--ink)" : "var(--border-med, #d1d5db)",
+  border: "none",
+  cursor: "pointer",
+  padding: "0 3px",
+  transition: "background 0.15s",
+  flexShrink: 0,
+});
+
+const toggleThumbStyle = (on: boolean): CSSProperties => ({
+  width: 14,
+  height: 14,
+  borderRadius: "50%",
+  background: "var(--white)",
+  transform: on ? "translateX(16px)" : "translateX(0)",
+  transition: "transform 0.15s",
+  flexShrink: 0,
+});
 
 const dividerStyle: CSSProperties = {
   width: 1,
@@ -327,6 +504,7 @@ const responseSideStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   overflow: "hidden",
+  minWidth: 0,
 };
 
 const tabBarStyle: CSSProperties = {
@@ -351,6 +529,43 @@ const tabStyle: CSSProperties = {
 const resultAreaStyle: CSSProperties = {
   flex: 1,
   overflow: "auto",
+};
+
+const emptyStyle: CSSProperties = {
+  fontFamily: "var(--font-sans)",
+  fontSize: 12,
+  color: "var(--ink-subtle)",
+  padding: "12px",
+};
+
+const outputGridStyle: CSSProperties = {
+  padding: "4px 0 8px",
+};
+
+const outputRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "4px 12px",
+  minHeight: 28,
+};
+
+const outputKeyStyle: CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 11,
+  color: "var(--ink-muted)",
+  width: 120,
+  flexShrink: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const outputValStyle: CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 12,
+  color: "var(--ink)",
+  fontWeight: 600,
 };
 
 const preStyle: CSSProperties = {

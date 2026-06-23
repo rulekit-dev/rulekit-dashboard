@@ -388,17 +388,14 @@ export default function RulesetEditorPage() {
         )}
       </div>
 
-      {/* Simulator — hidden until rulekit-sdk is available */}
-      {false && (
-        <SimulatorPanel
-          workspace={workspace}
-          rulesetKey={key}
-          dsl={dsl}
-          collapsed={!simulatorOpen}
-          onToggle={() => setSimulatorOpen((v) => !v)}
-          onSimulated={handleSimulated}
-        />
-      )}
+      <SimulatorPanel
+        workspace={workspace}
+        rulesetKey={key}
+        dsl={dsl}
+        collapsed={!simulatorOpen}
+        onToggle={() => setSimulatorOpen((v) => !v)}
+        onSimulated={handleSimulated}
+      />
 
       {/* Save bar */}
       {canEdit && (
@@ -433,10 +430,8 @@ function SaveActions({
   onSave: () => void;
   onPublish: () => void;
 }) {
-  const visible = true;
-
   return (
-    <div style={{ ...saveBarStyle, transform: visible ? "translateY(0)" : "translateY(100%)" }}>
+    <div style={saveBarStyle}>
       <div style={saveBarInnerStyle}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, visibility: dirty ? "visible" : "hidden" }}>
           <span style={saveDotStyle} />
@@ -570,6 +565,7 @@ const tabCloseBtnStyle: CSSProperties = {
 
 const editorAreaStyle: CSSProperties = {
   flex: 1,
+  minHeight: 0,
   overflow: "hidden",
   position: "relative",
 };
@@ -578,21 +574,14 @@ const scrollWrapperStyle: CSSProperties = {
   overflowY: "auto",
   overflowX: "hidden",
   height: "100%",
-  // bottom padding so content clears the fixed save bar
   boxSizing: "border-box",
-  paddingBottom: 65,
 };
 
 const saveBarStyle: CSSProperties = {
-  position: "fixed",
-  bottom: 0,
-  left: 240,
-  right: 0,
-  zIndex: 100,
+  flexShrink: 0,
   background: "var(--white)",
   borderTop: "1px solid var(--border)",
   padding: "16px 32px",
-  transition: "transform 0.25s ease",
 };
 
 const saveBarInnerStyle: CSSProperties = {
