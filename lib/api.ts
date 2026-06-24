@@ -314,6 +314,14 @@ export function revokeApiKey(id: string) {
   });
 }
 
+// Rollback
+export function rollbackRuleset(workspace: string, key: string, version: number) {
+  return request<import("./types").Draft>(
+    `/v1/rulesets/${encodeURIComponent(key)}/rollback?workspace=${encodeURIComponent(workspace)}`,
+    { method: "POST", body: JSON.stringify({ version }) }
+  );
+}
+
 // Evaluate
 export function evaluateRuleset(workspace: string, key: string, input: Record<string, unknown>) {
   return request<{ result: Record<string, unknown>; trace: { rule_id: string; rule_name: string; matched: boolean; duration_us: number }[] }>(

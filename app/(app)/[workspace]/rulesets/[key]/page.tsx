@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
 import { useParams } from "next/navigation";
-import type { DSL, ApiDSL, SchemaField } from "@/lib/types";
+import type { DSL, ApiDSL, SchemaField, Draft } from "@/lib/types";
 import { apiToDsl } from "@/lib/types";
 import * as api from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
@@ -138,6 +138,13 @@ export default function RulesetEditorPage() {
   const handleDiscard = () => {
     setDsl(savedDsl);
   };
+
+  const handleRollback = useCallback((draft: Draft, version: number) => {
+    const uiDsl = apiToDsl(draft.dsl as unknown as ApiDSL);
+    setDsl(uiDsl);
+    setSavedDsl(uiDsl);
+    toast(`Rolled back to v${version} — review and publish when ready`, undefined, "success");
+  }, [toast]);
 
   const handlePublish = async () => {
     setPublishing(true);
@@ -349,7 +356,13 @@ export default function RulesetEditorPage() {
       <div style={editorAreaStyle}>
         {activeTab.type === "versions" && (
           <div style={scrollWrapperStyle}>
-            <VersionsPanel workspace={workspace} rulesetKey={key} />
+            <VersionsPanel
+              workspace={workspace}
+              rulesetKey={key}
+              canEdit={canEdit}
+              dirty={dirty}
+              onRollback={handleRollback}
+            />
           </div>
         )}
         {activeTab.type === "fields" && (
