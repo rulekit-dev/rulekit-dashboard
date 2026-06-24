@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import type { DSL, ApiDSL, SchemaField, Draft } from "@/lib/types";
 import { apiToDsl, dslToApi } from "@/lib/types";
@@ -51,6 +51,7 @@ export default function RulesetEditorPage() {
   const [publishing, setPublishing] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const publishTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [publishDiffLatestDsl, setPublishDiffLatestDsl] = useState<string | null>(null);
 
   const [tabs, setTabs] = useState<EditorTab[]>([VERSIONS_TAB, FIELDS_TAB, CANVAS_TAB, DSL_TAB]);
   const [activeTabId, setActiveTabId] = useState(CANVAS_TAB.id);
@@ -147,6 +148,18 @@ export default function RulesetEditorPage() {
   }, [toast]);
 
   const handlePublish = async () => {
+    try {
+      const latest = await api.getVersion(workspace, key, "latest");
+      setPublishDiffLatestDsl(JSON.stringify(latest.dsl, null, 2));
+    } catch (err: unknown) {
+      const e = err as { code?: string };
+      if (e.code === "NOT_FOUND" || e.code === "HTTP_404") {
+        await doPublish();
+      }
+    }
+  };
+
+  const doPublish = async () => {
     setPublishing(true);
     try {
       if (dirty) {
@@ -423,6 +436,19 @@ export default function RulesetEditorPage() {
           onPublish={handlePublish}
         />
       )}
+
+      {/* Publish diff confirmation overlay */}
+      {publishDiffLatestDsl != null && (
+        <PublishDiffOverlay
+          currentDsl={JSON.stringify(dslToApi(dsl), null, 2)}
+          latestDsl={publishDiffLatestDsl}
+          onConfirm={async () => {
+            setPublishDiffLatestDsl(null);
+            await doPublish();
+          }}
+          onCancel={() => setPublishDiffLatestDsl(null)}
+        />
+      )}
     </div>
   );
 }
@@ -618,4 +644,209 @@ const saveTextStyle: CSSProperties = {
   fontSize: 14,
   fontWeight: 500,
   color: "var(--ink-muted)",
+};
+
+function PublishDiffOverlay({
+  currentDsl,
+  latestDsl,
+  onConfirm,
+  onCancel,
+}: {
+  currentDsl: string;
+  latestDsl: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const diffLines = useMemo(() => computeLineDiff(currentDsl, latestDsl), [currentDsl, latestDsl]);
+
+  return (
+    <div style={overlayBackdropStyle}>
+      <div style={overlayPanelStyle}>
+        <div style={overlayHeaderStyle}>
+          <span style={{ fontFamily: "var(--font-sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+            Review changes before publishing
+          </span>
+          <span style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--ink-muted)" }}>
+            draft → latest published
+          </span>
+        </div>
+        <div style={overlayDiffBodyStyle}>
+          <div style={overlayColStyle}>
+            <div style={overlayColHeaderStyle}>draft (to be published)</div>
+            <pre style={overlayPreStyle}>
+              {diffLines.map((line, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: "0 12px",
+                    whiteSpace: "pre",
+                    minHeight: "1.6em",
+                    background: line.type === "added" ? "rgba(22,163,74,0.08)" : "transparent",
+                    color: line.type === "added" ? "#15803D" : "var(--ink-muted)",
+                  }}
+                >
+                  {line.type === "added" ? "+ " : "  "}
+                  {line.from ?? ""}
+                </div>
+              ))}
+            </pre>
+          </div>
+          <div style={{ ...overlayColStyle, borderLeft: "1px solid var(--border)" }}>
+            <div style={overlayColHeaderStyle}>latest published</div>
+            <pre style={overlayPreStyle}>
+              {diffLines.map((line, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: "0 12px",
+                    whiteSpace: "pre",
+                    minHeight: "1.6em",
+                    background: line.type === "removed" ? "rgba(220,38,38,0.08)" : "transparent",
+                    color: line.type === "removed" ? "#B91C1C" : "var(--ink-muted)",
+                  }}
+                >
+                  {line.type === "removed" ? "− " : "  "}
+                  {line.to ?? ""}
+                </div>
+              ))}
+            </pre>
+          </div>
+        </div>
+        <div style={overlayFooterStyle}>
+          <button style={overlayCancelBtnStyle} onClick={onCancel}>Cancel</button>
+          <button style={overlayConfirmBtnStyle} onClick={onConfirm}>Confirm &amp; Publish</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type DiffLineType = { type: "same" | "added" | "removed"; from?: string; to?: string };
+
+function computeLineDiff(fromText: string, toText: string): DiffLineType[] {
+  const a = fromText.split("\n");
+  const b = toText.split("\n");
+  const MAX = 500;
+  if (a.length > MAX || b.length > MAX) {
+    const len = Math.max(a.length, b.length);
+    return Array.from({ length: len }, (_, i) => {
+      if (a[i] === b[i]) return { type: "same" as const, from: a[i], to: b[i] };
+      const r: DiffLineType[] = [];
+      if (a[i] !== undefined) r.push({ type: "added", from: a[i] });
+      if (b[i] !== undefined) r.push({ type: "removed", to: b[i] });
+      return r;
+    }).flat();
+  }
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = m - 1; i >= 0; i--)
+    for (let j = n - 1; j >= 0; j--)
+      dp[i][j] = a[i] === b[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
+  const result: DiffLineType[] = [];
+  let i = 0, j = 0;
+  while (i < m || j < n) {
+    if (i < m && j < n && a[i] === b[j]) {
+      result.push({ type: "same", from: a[i], to: b[j] }); i++; j++;
+    } else if (j < n && (i >= m || dp[i][j+1] >= dp[i+1][j])) {
+      result.push({ type: "removed", to: b[j] }); j++;
+    } else {
+      result.push({ type: "added", from: a[i] }); i++;
+    }
+  }
+  return result;
+}
+
+const overlayBackdropStyle: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  background: "rgba(0,0,0,0.45)",
+  zIndex: 1000,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const overlayPanelStyle: CSSProperties = {
+  background: "var(--white)",
+  borderRadius: 12,
+  boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+  width: "min(900px, 96vw)",
+  maxHeight: "80vh",
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
+
+const overlayHeaderStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  padding: "14px 20px",
+  borderBottom: "1px solid var(--border)",
+  flexShrink: 0,
+};
+
+const overlayDiffBodyStyle: CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  flex: 1,
+  overflow: "auto",
+  minHeight: 0,
+};
+
+const overlayColStyle: CSSProperties = {
+  overflow: "auto",
+};
+
+const overlayColHeaderStyle: CSSProperties = {
+  fontFamily: "var(--font-mono)",
+  fontSize: 11,
+  fontWeight: 600,
+  color: "var(--ink-subtle)",
+  padding: "6px 12px",
+  borderBottom: "1px solid var(--border)",
+  background: "var(--surface)",
+  position: "sticky",
+  top: 0,
+};
+
+const overlayPreStyle: CSSProperties = {
+  margin: 0,
+  padding: 0,
+  fontFamily: "var(--font-mono)",
+  fontSize: 11,
+  lineHeight: 1.6,
+  overflow: "visible",
+};
+
+const overlayFooterStyle: CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-end",
+  gap: 10,
+  padding: "12px 20px",
+  borderTop: "1px solid var(--border)",
+  flexShrink: 0,
+};
+
+const overlayCancelBtnStyle: CSSProperties = {
+  fontFamily: "var(--font-sans)",
+  fontSize: 13,
+  padding: "6px 16px",
+  borderRadius: 6,
+  border: "1px solid var(--border)",
+  background: "var(--white)",
+  color: "var(--ink-muted)",
+  cursor: "pointer",
+};
+
+const overlayConfirmBtnStyle: CSSProperties = {
+  fontFamily: "var(--font-sans)",
+  fontSize: 13,
+  fontWeight: 600,
+  padding: "6px 16px",
+  borderRadius: 6,
+  border: "none",
+  background: "var(--ink)",
+  color: "var(--white)",
+  cursor: "pointer",
 };
