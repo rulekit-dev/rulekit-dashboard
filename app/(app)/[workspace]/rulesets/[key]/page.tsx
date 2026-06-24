@@ -657,7 +657,11 @@ function PublishDiffOverlay({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const diffLines = useMemo(() => computeLineDiff(currentDsl, latestDsl), [currentDsl, latestDsl]);
+  // Normalize both sides to sorted-key JSON so key-order differences don't show as changes
+  const normalizedLatest = useMemo(() => sortedJson(latestDsl), [latestDsl]);
+  const normalizedDraft = useMemo(() => sortedJson(currentDsl), [currentDsl]);
+  // diff(latest → draft): "removed" = in latest but not draft, "added" = in draft but not latest
+  const diffLines = useMemo(() => computeLineDiff(normalizedLatest, normalizedDraft), [normalizedLatest, normalizedDraft]);
 
   return (
     <div style={overlayBackdropStyle}>
@@ -667,31 +671,11 @@ function PublishDiffOverlay({
             Review changes before publishing
           </span>
           <span style={{ fontFamily: "var(--font-sans)", fontSize: 12, color: "var(--ink-muted)" }}>
-            draft → latest published
+            latest published → draft
           </span>
         </div>
         <div style={overlayDiffBodyStyle}>
           <div style={overlayColStyle}>
-            <div style={overlayColHeaderStyle}>draft (to be published)</div>
-            <pre style={overlayPreStyle}>
-              {diffLines.map((line, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: "0 12px",
-                    whiteSpace: "pre",
-                    minHeight: "1.6em",
-                    background: line.type === "added" ? "rgba(22,163,74,0.08)" : "transparent",
-                    color: line.type === "added" ? "#15803D" : "var(--ink-muted)",
-                  }}
-                >
-                  {line.type === "added" ? "+ " : "  "}
-                  {line.from ?? ""}
-                </div>
-              ))}
-            </pre>
-          </div>
-          <div style={{ ...overlayColStyle, borderLeft: "1px solid var(--border)" }}>
             <div style={overlayColHeaderStyle}>latest published</div>
             <pre style={overlayPreStyle}>
               {diffLines.map((line, i) => (
@@ -706,6 +690,26 @@ function PublishDiffOverlay({
                   }}
                 >
                   {line.type === "removed" ? "− " : "  "}
+                  {line.from ?? ""}
+                </div>
+              ))}
+            </pre>
+          </div>
+          <div style={{ ...overlayColStyle, borderLeft: "1px solid var(--border)" }}>
+            <div style={overlayColHeaderStyle}>draft (to be published)</div>
+            <pre style={overlayPreStyle}>
+              {diffLines.map((line, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: "0 12px",
+                    whiteSpace: "pre",
+                    minHeight: "1.6em",
+                    background: line.type === "added" ? "rgba(22,163,74,0.08)" : "transparent",
+                    color: line.type === "added" ? "#15803D" : "var(--ink-muted)",
+                  }}
+                >
+                  {line.type === "added" ? "+ " : "  "}
                   {line.to ?? ""}
                 </div>
               ))}
@@ -719,6 +723,18 @@ function PublishDiffOverlay({
       </div>
     </div>
   );
+}
+
+function sortedJson(jsonStr: string): string {
+  try {
+    return JSON.stringify(JSON.parse(jsonStr, (_, v) =>
+      v && typeof v === "object" && !Array.isArray(v)
+        ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+        : v
+    ), null, 2);
+  } catch {
+    return jsonStr;
+  }
 }
 
 type DiffLineType = { type: "same" | "added" | "removed"; from?: string; to?: string };
