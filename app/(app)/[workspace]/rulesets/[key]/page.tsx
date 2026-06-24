@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import type { DSL, ApiDSL, SchemaField, Draft } from "@/lib/types";
-import { apiToDsl } from "@/lib/types";
+import { apiToDsl, dslToApi } from "@/lib/types";
 import * as api from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/contexts/AuthContext";
@@ -361,6 +361,7 @@ export default function RulesetEditorPage() {
               rulesetKey={key}
               canEdit={canEdit}
               dirty={dirty}
+              currentDsl={JSON.stringify(dslToApi(dsl), null, 2)}
               onRollback={handleRollback}
             />
           </div>

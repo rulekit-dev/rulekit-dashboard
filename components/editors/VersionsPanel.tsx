@@ -10,15 +10,16 @@ interface VersionsPanelProps {
   rulesetKey: string;
   canEdit: boolean;
   dirty?: boolean;
+  currentDsl?: string;
   onRollback?: (draft: Draft, version: number) => void;
 }
 
-export default function VersionsPanel({ workspace, rulesetKey, canEdit, dirty, onRollback }: VersionsPanelProps) {
+export default function VersionsPanel({ workspace, rulesetKey, canEdit, dirty, currentDsl, onRollback }: VersionsPanelProps) {
   const [versions, setVersions] = useState<Version[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rollingBack, setRollingBack] = useState<number | null>(null);
-  const [diffVersions, setDiffVersions] = useState<[number, number] | null>(null);
+  const [diffVersions, setDiffVersions] = useState<["draft" | number, number] | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -55,7 +56,7 @@ export default function VersionsPanel({ workspace, rulesetKey, canEdit, dirty, o
   }, [workspace, rulesetKey, dirty, onRollback]);
 
   const handleDiff = useCallback((version: number) => {
-    const latest = versions[0]?.version;
+    const latest = versions[versions.length - 1]?.version;
     if (latest == null) return;
     setDiffVersions([version, latest]);
   }, [versions]);
@@ -92,13 +93,14 @@ export default function VersionsPanel({ workspace, rulesetKey, canEdit, dirty, o
           rulesetKey={rulesetKey}
           fromVersion={diffVersions[0]}
           toVersion={diffVersions[1]}
+          currentDsl={currentDsl}
           onClose={() => setDiffVersions(null)}
         />
       )}
 
       {!diffVersions && (
         <div style={listStyle}>
-          {versions.map((v, idx) => {
+          {[...versions].reverse().map((v, idx) => {
             const isLatest = idx === 0;
             const isRollingBack = rollingBack === v.version;
             return (
@@ -129,10 +131,20 @@ export default function VersionsPanel({ workspace, rulesetKey, canEdit, dirty, o
                     {v.checksum.slice(0, 8)}
                   </div>
                   <div style={actionButtonsStyle}>
+                    {isLatest && currentDsl != null && (
+                      <button
+                        style={actionBtnStyle}
+                        title="Diff draft vs latest published"
+                        onClick={() => setDiffVersions(["draft", v.version])}
+                      >
+                        <GitCompare size={13} />
+                        <span>Diff draft</span>
+                      </button>
+                    )}
                     {!isLatest && (
                       <button
                         style={actionBtnStyle}
-                        title={`Diff v${v.version} vs v${versions[0].version}`}
+                        title={`Diff v${v.version} vs latest`}
                         onClick={() => handleDiff(v.version)}
                       >
                         <GitCompare size={13} />
@@ -164,12 +176,13 @@ export default function VersionsPanel({ workspace, rulesetKey, canEdit, dirty, o
 interface DiffViewProps {
   workspace: string;
   rulesetKey: string;
-  fromVersion: number;
+  fromVersion: "draft" | number;
   toVersion: number;
+  currentDsl?: string;
   onClose: () => void;
 }
 
-function DiffView({ workspace, rulesetKey, fromVersion, toVersion, onClose }: DiffViewProps) {
+function DiffView({ workspace, rulesetKey, fromVersion, toVersion, currentDsl, onClose }: DiffViewProps) {
   const [fromDSL, setFromDSL] = useState<string | null>(null);
   const [toDSL, setToDSL] = useState<string | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
@@ -178,19 +191,31 @@ function DiffView({ workspace, rulesetKey, fromVersion, toVersion, onClose }: Di
     setFromDSL(null);
     setToDSL(null);
     setLoadErr(null);
-    Promise.all([
-      api.getVersion(workspace, rulesetKey, fromVersion),
-      api.getVersion(workspace, rulesetKey, toVersion),
-    ])
-      .then(([from, to]) => {
-        setFromDSL(JSON.stringify(from.dsl, null, 2));
-        setToDSL(JSON.stringify(to.dsl, null, 2));
-      })
-      .catch((err: unknown) => {
-        const e = err as { message?: string };
-        setLoadErr(e.message || "Failed to load versions");
-      });
-  }, [workspace, rulesetKey, fromVersion, toVersion]);
+    if (fromVersion === "draft") {
+      api.getVersion(workspace, rulesetKey, toVersion)
+        .then((to) => {
+          setFromDSL(currentDsl ?? "");
+          setToDSL(JSON.stringify(to.dsl, null, 2));
+        })
+        .catch((err: unknown) => {
+          const e = err as { message?: string };
+          setLoadErr(e.message || "Failed to load version");
+        });
+    } else {
+      Promise.all([
+        api.getVersion(workspace, rulesetKey, fromVersion),
+        api.getVersion(workspace, rulesetKey, toVersion),
+      ])
+        .then(([from, to]) => {
+          setFromDSL(JSON.stringify(from.dsl, null, 2));
+          setToDSL(JSON.stringify(to.dsl, null, 2));
+        })
+        .catch((err: unknown) => {
+          const e = err as { message?: string };
+          setLoadErr(e.message || "Failed to load versions");
+        });
+    }
+  }, [workspace, rulesetKey, fromVersion, toVersion, currentDsl]);
 
   const diffLines = fromDSL && toDSL ? computeDiff(fromDSL, toDSL) : null;
 
@@ -198,7 +223,7 @@ function DiffView({ workspace, rulesetKey, fromVersion, toVersion, onClose }: Di
     <div style={diffContainerStyle}>
       <div style={diffHeaderStyle}>
         <span style={diffTitleStyle}>
-          Diff: <strong>v{fromVersion}</strong> → <strong>v{toVersion}</strong>
+          Diff: <strong>{fromVersion === "draft" ? "draft" : `v${fromVersion}`}</strong> → <strong>v{toVersion} (latest)</strong>
         </span>
         <button style={diffCloseBtnStyle} onClick={onClose} title="Close diff">
           <X size={14} />
@@ -220,7 +245,7 @@ function DiffView({ workspace, rulesetKey, fromVersion, toVersion, onClose }: Di
       {diffLines && (
         <div style={diffBodyStyle}>
           <div style={diffColStyle}>
-            <div style={diffColHeaderStyle}>v{fromVersion}</div>
+            <div style={diffColHeaderStyle}>{fromVersion === "draft" ? "draft" : `v${fromVersion}`}</div>
             <pre style={diffPreStyle}>
               {diffLines.map((line, i) => (
                 <div
@@ -238,7 +263,7 @@ function DiffView({ workspace, rulesetKey, fromVersion, toVersion, onClose }: Di
             </pre>
           </div>
           <div style={{ ...diffColStyle, borderLeft: "1px solid var(--border)" }}>
-            <div style={diffColHeaderStyle}>v{toVersion} (latest)</div>
+            <div style={diffColHeaderStyle}>v{toVersion} (latest published)</div>
             <pre style={diffPreStyle}>
               {diffLines.map((line, i) => (
                 <div
