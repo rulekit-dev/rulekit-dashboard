@@ -194,8 +194,8 @@ function DiffView({ workspace, rulesetKey, fromVersion, toVersion, currentDsl, o
     if (fromVersion === "draft") {
       api.getVersion(workspace, rulesetKey, toVersion)
         .then((to) => {
-          setFromDSL(currentDsl ?? "");
-          setToDSL(JSON.stringify(to.dsl, null, 2));
+          setFromDSL(sortedJson(currentDsl ?? ""));
+          setToDSL(sortedJson(JSON.stringify(to.dsl, null, 2)));
         })
         .catch((err: unknown) => {
           const e = err as { message?: string };
@@ -207,8 +207,8 @@ function DiffView({ workspace, rulesetKey, fromVersion, toVersion, currentDsl, o
         api.getVersion(workspace, rulesetKey, toVersion),
       ])
         .then(([from, to]) => {
-          setFromDSL(JSON.stringify(from.dsl, null, 2));
-          setToDSL(JSON.stringify(to.dsl, null, 2));
+          setFromDSL(sortedJson(JSON.stringify(from.dsl, null, 2)));
+          setToDSL(sortedJson(JSON.stringify(to.dsl, null, 2)));
         })
         .catch((err: unknown) => {
           const e = err as { message?: string };
@@ -244,42 +244,24 @@ function DiffView({ workspace, rulesetKey, fromVersion, toVersion, currentDsl, o
 
       {diffLines && (
         <div style={diffBodyStyle}>
-          <div style={diffColStyle}>
-            <div style={diffColHeaderStyle}>{fromVersion === "draft" ? "draft" : `v${fromVersion}`}</div>
-            <pre style={diffPreStyle}>
-              {diffLines.map((line, i) => (
-                <div
-                  key={i}
-                  style={{
-                    ...diffLineStyle,
-                    background: line.type === "removed" ? "rgba(220,38,38,0.08)" : "transparent",
-                    color: line.type === "removed" ? "#B91C1C" : "var(--ink-muted)",
-                  }}
-                >
-                  {line.type === "removed" ? "− " : "  "}
-                  {line.from ?? ""}
+          <div style={diffColHeaderStyle}>{fromVersion === "draft" ? "draft" : `v${fromVersion}`}</div>
+          <div style={{ ...diffColHeaderStyle, borderLeft: "1px solid var(--border)" }}>v{toVersion} (latest published)</div>
+          {diffLines.map((line, i) => {
+            const leftBg    = (line.type === "removed" || line.type === "changed") ? "rgba(220,38,38,0.08)" : "transparent";
+            const rightBg   = (line.type === "added"   || line.type === "changed") ? "rgba(22,163,74,0.08)"  : "transparent";
+            const leftColor  = (line.type === "removed" || line.type === "changed") ? "#B91C1C" : "var(--ink-muted)";
+            const rightColor = (line.type === "added"   || line.type === "changed") ? "#15803D" : "var(--ink-muted)";
+            return (
+              <React.Fragment key={i}>
+                <div style={{ ...diffLineStyle, background: leftBg, color: leftColor }}>
+                  {(line.type === "removed" || line.type === "changed") ? "− " : "  "}{line.from ?? ""}
                 </div>
-              ))}
-            </pre>
-          </div>
-          <div style={{ ...diffColStyle, borderLeft: "1px solid var(--border)" }}>
-            <div style={diffColHeaderStyle}>v{toVersion} (latest published)</div>
-            <pre style={diffPreStyle}>
-              {diffLines.map((line, i) => (
-                <div
-                  key={i}
-                  style={{
-                    ...diffLineStyle,
-                    background: line.type === "added" ? "rgba(22,163,74,0.08)" : "transparent",
-                    color: line.type === "added" ? "#15803D" : "var(--ink-muted)",
-                  }}
-                >
-                  {line.type === "added" ? "+ " : "  "}
-                  {line.to ?? ""}
+                <div style={{ ...diffLineStyle, background: rightBg, color: rightColor, borderLeft: "1px solid var(--border)" }}>
+                  {(line.type === "added" || line.type === "changed") ? "+ " : "  "}{line.to ?? ""}
                 </div>
-              ))}
-            </pre>
-          </div>
+              </React.Fragment>
+            );
+          })}
         </div>
       )}
     </div>
@@ -287,9 +269,21 @@ function DiffView({ workspace, rulesetKey, fromVersion, toVersion, currentDsl, o
 }
 
 interface DiffLine {
-  type: "same" | "removed" | "added";
+  type: "same" | "removed" | "added" | "changed";
   from?: string;
   to?: string;
+}
+
+function sortedJson(jsonStr: string): string {
+  try {
+    return JSON.stringify(JSON.parse(jsonStr, (_, v) =>
+      v && typeof v === "object" && !Array.isArray(v)
+        ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)))
+        : v
+    ), null, 2);
+  } catch {
+    return jsonStr;
+  }
 }
 
 function computeDiff(fromText: string, toText: string): DiffLine[] {
@@ -330,21 +324,34 @@ function computeDiff(fromText: string, toText: string): DiffLine[] {
     }
   }
 
-  const result: DiffLine[] = [];
+  const raw: DiffLine[] = [];
   let i = 0, j = 0;
   while (i < m || j < n) {
     if (i < m && j < n && fromLines[i] === toLines[j]) {
-      result.push({ type: "same", from: fromLines[i], to: toLines[j] });
+      raw.push({ type: "same", from: fromLines[i], to: toLines[j] });
       i++; j++;
     } else if (j < n && (i >= m || dp[i][j + 1] >= dp[i + 1][j])) {
-      result.push({ type: "added", from: undefined, to: toLines[j] });
+      raw.push({ type: "added", from: undefined, to: toLines[j] });
       j++;
     } else {
-      result.push({ type: "removed", from: fromLines[i], to: undefined });
+      raw.push({ type: "removed", from: fromLines[i], to: undefined });
       i++;
     }
   }
-  return result;
+  // Coalesce adjacent removed+added pairs into a single "changed" row
+  const out: DiffLine[] = [];
+  let k = 0;
+  while (k < raw.length) {
+    const cur = raw[k], nxt = raw[k + 1];
+    if (cur.type === "removed" && nxt?.type === "added") {
+      out.push({ type: "changed", from: cur.from, to: nxt.to }); k += 2;
+    } else if (cur.type === "added" && nxt?.type === "removed") {
+      out.push({ type: "changed", from: nxt.from, to: cur.to }); k += 2;
+    } else {
+      out.push(cur); k++;
+    }
+  }
+  return out;
 }
 
 function formatDate(iso: string): string {
@@ -511,12 +518,9 @@ const diffCloseBtnStyle: CSSProperties = {
 const diffBodyStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
+  gridAutoRows: "min-content",
   overflow: "auto",
   maxHeight: 480,
-};
-
-const diffColStyle: CSSProperties = {
-  overflow: "auto",
 };
 
 const diffColHeaderStyle: CSSProperties = {
