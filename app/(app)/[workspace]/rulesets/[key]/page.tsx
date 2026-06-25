@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo, CSSProperties } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo, CSSProperties } from "react";
 import { useParams } from "next/navigation";
 import type { DSL, ApiDSL, SchemaField, Draft } from "@/lib/types";
 import { apiToDsl, dslToApi } from "@/lib/types";
@@ -675,46 +675,24 @@ function PublishDiffOverlay({
           </span>
         </div>
         <div style={overlayDiffBodyStyle}>
-          <div style={overlayColStyle}>
-            <div style={overlayColHeaderStyle}>latest published</div>
-            <pre style={overlayPreStyle}>
-              {diffLines.map((line, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: "0 12px",
-                    whiteSpace: "pre",
-                    minHeight: "1.6em",
-                    background: line.type === "removed" ? "rgba(220,38,38,0.08)" : "transparent",
-                    color: line.type === "removed" ? "#B91C1C" : "var(--ink-muted)",
-                  }}
-                >
-                  {line.type === "removed" ? "− " : "  "}
-                  {line.from ?? ""}
+          <div style={overlayColHeaderStyle}>latest published</div>
+          <div style={{ ...overlayColHeaderStyle, borderLeft: "1px solid var(--border)" }}>draft (to be published)</div>
+          {diffLines.map((line, i) => {
+            const leftBg  = line.type === "removed" ? "rgba(220,38,38,0.08)"  : line.type === "added" ? "rgba(220,38,38,0.04)" : "transparent";
+            const rightBg = line.type === "added"   ? "rgba(22,163,74,0.08)"  : line.type === "removed" ? "rgba(22,163,74,0.04)" : "transparent";
+            const leftColor  = line.type === "removed" ? "#B91C1C" : "var(--ink-muted)";
+            const rightColor = line.type === "added"   ? "#15803D" : "var(--ink-muted)";
+            return (
+              <React.Fragment key={i}>
+                <div style={{ padding: "0 12px", whiteSpace: "pre", minHeight: "1.6em", fontFamily: "var(--font-mono)", fontSize: 11, lineHeight: 1.6, background: leftBg, color: leftColor }}>
+                  {line.type === "removed" ? "− " : "  "}{line.from ?? ""}
                 </div>
-              ))}
-            </pre>
-          </div>
-          <div style={{ ...overlayColStyle, borderLeft: "1px solid var(--border)" }}>
-            <div style={overlayColHeaderStyle}>draft (to be published)</div>
-            <pre style={overlayPreStyle}>
-              {diffLines.map((line, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: "0 12px",
-                    whiteSpace: "pre",
-                    minHeight: "1.6em",
-                    background: line.type === "added" ? "rgba(22,163,74,0.08)" : "transparent",
-                    color: line.type === "added" ? "#15803D" : "var(--ink-muted)",
-                  }}
-                >
-                  {line.type === "added" ? "+ " : "  "}
-                  {line.to ?? ""}
+                <div style={{ padding: "0 12px", whiteSpace: "pre", minHeight: "1.6em", fontFamily: "var(--font-mono)", fontSize: 11, lineHeight: 1.6, background: rightBg, color: rightColor, borderLeft: "1px solid var(--border)" }}>
+                  {line.type === "added" ? "+ " : "  "}{line.to ?? ""}
                 </div>
-              ))}
-            </pre>
-          </div>
+              </React.Fragment>
+            );
+          })}
         </div>
         <div style={overlayFooterStyle}>
           <button style={overlayCancelBtnStyle} onClick={onCancel}>Cancel</button>
@@ -805,6 +783,7 @@ const overlayHeaderStyle: CSSProperties = {
 const overlayDiffBodyStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "1fr 1fr",
+  gridAutoRows: "min-content",
   flex: 1,
   overflow: "auto",
   minHeight: 0,
