@@ -678,17 +678,19 @@ function PublishDiffOverlay({
           <div style={overlayColHeaderStyle}>latest published</div>
           <div style={{ ...overlayColHeaderStyle, borderLeft: "1px solid var(--border)" }}>draft (to be published)</div>
           {diffLines.map((line, i) => {
-            const leftBg  = line.type === "removed" ? "rgba(220,38,38,0.08)"  : line.type === "added" ? "rgba(220,38,38,0.04)" : "transparent";
-            const rightBg = line.type === "added"   ? "rgba(22,163,74,0.08)"  : line.type === "removed" ? "rgba(22,163,74,0.04)" : "transparent";
-            const leftColor  = line.type === "removed" ? "#B91C1C" : "var(--ink-muted)";
-            const rightColor = line.type === "added"   ? "#15803D" : "var(--ink-muted)";
+            const leftBg  = (line.type === "removed" || line.type === "changed") ? "rgba(220,38,38,0.08)" : "transparent";
+            const rightBg = (line.type === "added"   || line.type === "changed") ? "rgba(22,163,74,0.08)"  : "transparent";
+            const leftColor  = (line.type === "removed" || line.type === "changed") ? "#B91C1C" : "var(--ink-muted)";
+            const rightColor = (line.type === "added"   || line.type === "changed") ? "#15803D" : "var(--ink-muted)";
+            const leftPrefix  = (line.type === "removed" || line.type === "changed") ? "− " : "  ";
+            const rightPrefix = (line.type === "added"   || line.type === "changed") ? "+ " : "  ";
             return (
               <React.Fragment key={i}>
                 <div style={{ padding: "0 12px", whiteSpace: "pre", minHeight: "1.6em", fontFamily: "var(--font-mono)", fontSize: 11, lineHeight: 1.6, background: leftBg, color: leftColor }}>
-                  {line.type === "removed" ? "− " : "  "}{line.from ?? ""}
+                  {leftPrefix}{line.from ?? ""}
                 </div>
                 <div style={{ padding: "0 12px", whiteSpace: "pre", minHeight: "1.6em", fontFamily: "var(--font-mono)", fontSize: 11, lineHeight: 1.6, background: rightBg, color: rightColor, borderLeft: "1px solid var(--border)" }}>
-                  {line.type === "added" ? "+ " : "  "}{line.to ?? ""}
+                  {rightPrefix}{line.to ?? ""}
                 </div>
               </React.Fragment>
             );
@@ -715,39 +717,55 @@ function sortedJson(jsonStr: string): string {
   }
 }
 
-type DiffLineType = { type: "same" | "added" | "removed"; from?: string; to?: string };
+type DiffLineType = { type: "same" | "added" | "removed" | "changed"; from?: string; to?: string };
 
 function computeLineDiff(fromText: string, toText: string): DiffLineType[] {
   const a = fromText.split("\n");
   const b = toText.split("\n");
   const MAX = 500;
+  let raw: DiffLineType[];
   if (a.length > MAX || b.length > MAX) {
     const len = Math.max(a.length, b.length);
-    return Array.from({ length: len }, (_, i) => {
-      if (a[i] === b[i]) return { type: "same" as const, from: a[i], to: b[i] };
+    raw = Array.from({ length: len }, (_, i) => {
+      if (a[i] === b[i]) return [{ type: "same" as const, from: a[i], to: b[i] }];
       const r: DiffLineType[] = [];
       if (a[i] !== undefined) r.push({ type: "added", from: a[i] });
       if (b[i] !== undefined) r.push({ type: "removed", to: b[i] });
       return r;
     }).flat();
-  }
-  const m = a.length, n = b.length;
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  for (let i = m - 1; i >= 0; i--)
-    for (let j = n - 1; j >= 0; j--)
-      dp[i][j] = a[i] === b[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
-  const result: DiffLineType[] = [];
-  let i = 0, j = 0;
-  while (i < m || j < n) {
-    if (i < m && j < n && a[i] === b[j]) {
-      result.push({ type: "same", from: a[i], to: b[j] }); i++; j++;
-    } else if (j < n && (i >= m || dp[i][j+1] >= dp[i+1][j])) {
-      result.push({ type: "removed", to: b[j] }); j++;
-    } else {
-      result.push({ type: "added", from: a[i] }); i++;
+  } else {
+    const m = a.length, n = b.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = m - 1; i >= 0; i--)
+      for (let j = n - 1; j >= 0; j--)
+        dp[i][j] = a[i] === b[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j], dp[i][j+1]);
+    raw = [];
+    let i = 0, j = 0;
+    while (i < m || j < n) {
+      if (i < m && j < n && a[i] === b[j]) {
+        raw.push({ type: "same", from: a[i], to: b[j] }); i++; j++;
+      } else if (j < n && (i >= m || dp[i][j+1] >= dp[i+1][j])) {
+        raw.push({ type: "removed", to: b[j] }); j++;
+      } else {
+        raw.push({ type: "added", from: a[i] }); i++;
+      }
     }
   }
-  return result;
+  // Coalesce adjacent added+removed pairs into a single "changed" row
+  const out: DiffLineType[] = [];
+  let k = 0;
+  while (k < raw.length) {
+    const cur = raw[k];
+    const nxt = raw[k + 1];
+    if (cur.type === "added" && nxt?.type === "removed") {
+      out.push({ type: "changed", from: cur.from, to: nxt.to }); k += 2;
+    } else if (cur.type === "removed" && nxt?.type === "added") {
+      out.push({ type: "changed", from: nxt.from, to: cur.to }); k += 2;
+    } else {
+      out.push(cur); k++;
+    }
+  }
+  return out;
 }
 
 const overlayBackdropStyle: CSSProperties = {
