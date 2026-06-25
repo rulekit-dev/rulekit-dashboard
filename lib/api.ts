@@ -175,10 +175,10 @@ export function deleteWorkspace(name: string) {
 }
 
 // Rulesets
-export function listRulesets(workspace: string, limit = 50, offset = 0) {
-  return request<{ data: import("./types").Ruleset[] }>(
-    `/v1/rulesets?workspace=${encodeURIComponent(workspace)}&limit=${limit}&offset=${offset}`
-  );
+export function listRulesets(workspace: string, search = "", limit = 50, offset = 0) {
+  const q = new URLSearchParams({ workspace, limit: String(limit), offset: String(offset) });
+  if (search) q.set("search", search);
+  return request<{ data: import("./types").Ruleset[] }>(`/v1/rulesets?${q}`);
 }
 
 export function getRuleset(workspace: string, key: string) {
@@ -198,6 +198,13 @@ export function deleteRuleset(workspace: string, key: string) {
   return request<void>(
     `/v1/rulesets/${encodeURIComponent(key)}?workspace=${encodeURIComponent(workspace)}`,
     { method: "DELETE" }
+  );
+}
+
+export function renameRuleset(workspace: string, key: string, newKey: string, name: string, description: string) {
+  return request<import("./types").Ruleset>(
+    `/v1/rulesets/${encodeURIComponent(key)}?workspace=${encodeURIComponent(workspace)}`,
+    { method: "PATCH", body: JSON.stringify({ new_key: newKey, name, description }) }
   );
 }
 

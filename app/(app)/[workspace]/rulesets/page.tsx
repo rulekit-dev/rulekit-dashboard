@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
@@ -9,7 +9,7 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import DataTable, { DataTableColumn } from "@/components/ui/DataTable";
 import { useAuth } from "@/lib/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
-import { listRulesets, createRuleset, deleteRuleset } from "@/lib/api";
+import { listRulesets, createRuleset, deleteRuleset, renameRuleset } from "@/lib/api";
 import type { Ruleset } from "@/lib/types";
 
 const KEY_RE = /^[a-z0-9_-]{1,128}$/;
@@ -34,6 +34,9 @@ export default function RulesetsPage() {
 
   const [rulesets, setRulesets] = useState<Ruleset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [deleteTarget, setDeleteTarget] = useState<Ruleset | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -45,12 +48,32 @@ export default function RulesetsPage() {
   const [createNameError, setCreateNameError] = useState("");
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    listRulesets(workspace)
+  const [renameTarget, setRenameTarget] = useState<Ruleset | null>(null);
+  const [renameNewKey, setRenameNewKey] = useState("");
+  const [renameNewName, setRenameNewName] = useState("");
+  const [renameNewDesc, setRenameNewDesc] = useState("");
+  const [renameKeyError, setRenameKeyError] = useState("");
+  const [renameNameError, setRenameNameError] = useState("");
+  const [renaming, setRenaming] = useState(false);
+
+  function fetchRulesets(search: string) {
+    setLoading(true);
+    listRulesets(workspace, search)
       .then((res) => setRulesets(Array.isArray(res) ? res : res.data || []))
       .catch(() => toast("Error", "Failed to load rulesets", "error"))
       .finally(() => setLoading(false));
-  }, [workspace, toast]);
+  }
+
+  useEffect(() => {
+    fetchRulesets("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace]);
+
+  function handleSearchChange(q: string) {
+    setSearchQuery(q);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchRulesets(q), 300);
+  }
 
   function openCreate() {
     setCreateKey(""); setCreateName(""); setCreateDesc("");
@@ -93,13 +116,49 @@ export default function RulesetsPage() {
     }
   }
 
+  function openRename(rs: Ruleset) {
+    setRenameTarget(rs);
+    setRenameNewKey(rs.key);
+    setRenameNewName(rs.name);
+    setRenameNewDesc(rs.description || "");
+    setRenameKeyError("");
+    setRenameNameError("");
+  }
+
+  async function handleRename() {
+    if (!renameTarget) return;
+    let valid = true;
+    if (!KEY_RE.test(renameNewKey)) { setRenameKeyError("Lowercase letters, numbers, hyphens, underscores only (1-128 chars)"); valid = false; }
+    else setRenameKeyError("");
+    if (!renameNewName.trim()) { setRenameNameError("Name is required"); valid = false; }
+    else setRenameNameError("");
+    if (!valid) return;
+    setRenaming(true);
+    try {
+      const updated = await renameRuleset(workspace, renameTarget.key, renameNewKey, renameNewName, renameNewDesc);
+      setRulesets((prev) => prev.map((r) => r.key === renameTarget.key ? updated : r));
+      setRenameTarget(null);
+      toast("Ruleset renamed");
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
+      if (e.code === "CONFLICT") {
+        setRenameKeyError("Cannot rename — ruleset has published versions. Delete and recreate instead.");
+      } else if (e.code === "ALREADY_EXISTS") {
+        setRenameKeyError("A ruleset with that key already exists.");
+      } else {
+        toast("Error", "Failed to rename ruleset", "error");
+      }
+    } finally {
+      setRenaming(false);
+    }
+  }
+
   const columns: DataTableColumn<Ruleset>[] = [
     {
       key: "key",
       label: "Key",
       width: "200px",
       sortable: true,
-      searchable: true,
       value: rs => rs.key,
       render: (rs) => (
         <span style={{
@@ -119,7 +178,6 @@ export default function RulesetsPage() {
       label: "Name",
       width: "1fr",
       sortable: true,
-      searchable: true,
       value: rs => rs.name,
       render: (rs) => (
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -152,7 +210,7 @@ export default function RulesetsPage() {
     {
       key: "actions",
       label: "",
-      width: "140px",
+      width: "180px",
       align: "right",
       render: (rs) => (
         <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }} onClick={e => e.stopPropagation()}>
@@ -162,12 +220,19 @@ export default function RulesetsPage() {
             onClick={() => router.push(`/${workspace}/rulesets/${rs.key}`)}
           />
           {canEdit && (
-            <ActionBtn
-              label="Delete"
-              icon={<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M4.5 3V2h3v1M5 3v5.5M7 3v5.5M2.5 3l.5 6.5h6l.5-6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-              onClick={() => setDeleteTarget(rs)}
-              danger
-            />
+            <>
+              <ActionBtn
+                label="Rename"
+                icon={<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M8.5 1.5a1.414 1.414 0 0 1 2 2L4 10l-3 1 1-3 6.5-6.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                onClick={() => openRename(rs)}
+              />
+              <ActionBtn
+                label="Delete"
+                icon={<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 3h8M4.5 3V2h3v1M5 3v5.5M7 3v5.5M2.5 3l.5 6.5h6l.5-6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                onClick={() => setDeleteTarget(rs)}
+                danger
+              />
+            </>
           )}
         </div>
       ),
@@ -199,6 +264,26 @@ export default function RulesetsPage() {
             </span>
           )}
         </div>
+        {/* Server-side search input */}
+        <div style={{ position: "relative" }}>
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", color: "var(--ink-subtle)", pointerEvents: "none" }}>
+            <circle cx="5.5" cy="5.5" r="4" stroke="currentColor" strokeWidth="1.3"/>
+            <path d="M8.5 8.5 11 11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+          </svg>
+          <input
+            type="text"
+            placeholder="Search rulesets…"
+            value={searchQuery}
+            onChange={e => handleSearchChange(e.target.value)}
+            style={{
+              paddingLeft: 28, paddingRight: 10, height: 30, fontSize: 12,
+              border: "1px solid var(--border)", borderRadius: 7,
+              background: "var(--surface)", color: "var(--ink)",
+              outline: "none", width: 200,
+              fontFamily: "var(--font-sans)",
+            }}
+          />
+        </div>
       </div>
 
       <div style={{ padding: "24px 28px" }}>
@@ -208,9 +293,9 @@ export default function RulesetsPage() {
           rowKey={rs => rs.key}
           loading={loading}
           onRowClick={rs => router.push(`/${workspace}/rulesets/${rs.key}`)}
-          emptyTitle="No rulesets yet"
-          emptyDescription="Create your first ruleset to get started."
-          emptyAction={canEdit ? <Button variant="primary" onClick={openCreate}>Create ruleset</Button> : undefined}
+          emptyTitle={searchQuery ? "No rulesets match your search" : "No rulesets yet"}
+          emptyDescription={searchQuery ? "Try a different keyword." : "Create your first ruleset to get started."}
+          emptyAction={!searchQuery && canEdit ? <Button variant="primary" onClick={openCreate}>Create ruleset</Button> : undefined}
           pageSize={10}
           addLabel="New ruleset"
           onAdd={canEdit ? openCreate : undefined}
@@ -231,6 +316,23 @@ export default function RulesetsPage() {
           <Input label="Key" value={createKey} onChange={e => setCreateKey(e.target.value)} placeholder="my-ruleset" mono error={createKeyError} hint="Lowercase letters, numbers, hyphens, underscores" />
           <Input label="Name" value={createName} onChange={e => setCreateName(e.target.value)} placeholder="My Ruleset" error={createNameError} />
           <Input label="Description" value={createDesc} onChange={e => setCreateDesc(e.target.value)} placeholder="Optional description" />
+        </div>
+      </Modal>
+
+      {/* Rename modal */}
+      <Modal
+        open={!!renameTarget} onClose={() => setRenameTarget(null)} title="Rename ruleset"
+        footer={
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Button variant="ghost" onClick={() => setRenameTarget(null)}>Cancel</Button>
+            <Button variant="primary" onClick={handleRename} loading={renaming}>Rename</Button>
+          </div>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Input label="Key" value={renameNewKey} onChange={e => setRenameNewKey(e.target.value)} placeholder="my-ruleset" mono error={renameKeyError} hint="Lowercase letters, numbers, hyphens, underscores" />
+          <Input label="Name" value={renameNewName} onChange={e => setRenameNewName(e.target.value)} placeholder="My Ruleset" error={renameNameError} />
+          <Input label="Description" value={renameNewDesc} onChange={e => setRenameNewDesc(e.target.value)} placeholder="Optional description" />
         </div>
       </Modal>
 
