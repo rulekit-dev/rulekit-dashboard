@@ -1,4 +1,4 @@
-.PHONY: install dev build typecheck test release
+.PHONY: install dev build typecheck test release install-hooks
 
 install:
 	pnpm install --frozen-lockfile
@@ -13,6 +13,10 @@ typecheck:
 	pnpm typecheck
 
 test: typecheck build
+
+install-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit
 
 # Usage: make release VERSION=1.2.0
 release: test
